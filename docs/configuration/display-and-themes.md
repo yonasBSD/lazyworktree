@@ -42,6 +42,14 @@ layout_sizes:
 All fields are optional — omitted fields keep their built-in defaults. Focus-based
 dynamic resizing still applies on top of the configured baseline.
 
+**Tip:** On smaller terminals, setting `worktrees` to a higher value such as `80`
+gives the worktree list more room whilst keeping the info and commit panes visible.
+You can also resize the worktree pane at runtime with `h` (shrink) and `l` (grow).
+
+![Worktree pane at 80%](../assets/worktree-size-80%.png)
+
+*Worktree pane with `worktrees: 80` — more space for the list on a compact screen.*
+
 ## Icon Rendering
 
 - `icon_set`: `nerd-font-v3` or `text`

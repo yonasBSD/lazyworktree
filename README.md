@@ -24,6 +24,7 @@ Useful entry points:
 - Navigation and keybindings: <https://chmouel.github.io/lazyworktree/docs/core/navigation-and-keybindings/>
 - Configuration overview: <https://chmouel.github.io/lazyworktree/docs/configuration/overview/>
 - Configuration reference: <https://chmouel.github.io/lazyworktree/docs/configuration/reference/>
+- Full configuration example: [`config.example.yaml`](config.example.yaml)
 - CLI overview: <https://chmouel.github.io/lazyworktree/docs/cli/overview/>
 - CLI flags reference: <https://chmouel.github.io/lazyworktree/docs/cli/flags/>
 - CLI commands reference: <https://chmouel.github.io/lazyworktree/docs/cli/commands/>
