@@ -1,12 +1,40 @@
-# Automatically Generated Worktree Notes
+# Setting Worktree Notes and Auto-Generated Context
 
 Configure `worktree_note_script` to generate initial worktree notes when creating from a PR/MR or issue. The script receives the selected item's title and body on stdin and can produce multiline output.
 
 <div class="mint-callout">
-  <p><strong>Use this page when:</strong> you want to automate note generation for new worktrees created from PRs or issues.</p>
+  <p><strong>Use this page when:</strong> you want to keep clear context per worktree and auto-generate starter notes from PRs or issues.</p>
 </div>
 
-## Configuration
+## Why notes matter
+
+Worktree notes make it easy to remember context when switching between branches.
+
+A short note can capture:
+
+- what this worktree is for
+- what has already been done
+- what should happen next
+
+This is especially useful when you return to a worktree after a few days, or when you are juggling multiple PRs in parallel.
+
+## Setting notes manually
+
+Open a worktree and press `i` to edit its note.
+
+Keep the note brief and practical, for example:
+
+```markdown
+## Context
+- PR: #142
+- Goal: finish retry handling in webhook reconciliation
+
+## Next actions
+- add failing test for timeout branch
+- update retry backoff to cap at 30s
+```
+
+## Auto-generating notes with `worktree_note_script`
 
 ```yaml
 worktree_note_script: "aichat -m gemini:gemini-2.5-flash-lite 'Summarise this ticket into practical implementation notes.'"
@@ -19,6 +47,25 @@ worktree_notes_path: ".lazyworktree/notes.json"
 ```
 
 When `worktree_notes_path` is set, note keys are stored relative to `worktree_dir` instead of absolute filesystem paths, making the file portable across machines and clones.
+
+## Example script: PR details to LLM note
+
+For more control, point `worktree_note_script` to your own script. The script can receive PR title/body on stdin, call your preferred LLM, and return a concise note.
+
+```yaml
+worktree_note_script: "$HOME/.config/lazyworktree/scripts/worktree-note-from-pr.sh"
+```
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+PR_CONTENT=$(cat)
+
+printf '%s\n' "$PR_CONTENT" | aichat \
+  -m gemini:gemini-2.5-flash-lite \
+  'Create concise developer worktree notes with context, done items, and next actions.'
+```
 
 ## Script Requirements
 

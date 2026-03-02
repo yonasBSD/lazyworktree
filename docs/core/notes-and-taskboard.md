@@ -21,11 +21,11 @@ When a note exists for a worktree, a note marker appears in the worktree list an
 
 <div class="lw-media-grid">
   <figure>
-    <img alt="Worktree notes authoring" src="../assets/screenshot-annotations.png" loading="lazy" />
+    <img alt="Worktree notes authoring" src="../../assets/screenshot-annotations.png" loading="lazy" />
     <figcaption>Worktree notes authoring and context capture.</figcaption>
   </figure>
   <figure>
-    <img alt="Rendered markdown notes" src="../assets/screenshot-rendered-notes.png" loading="lazy" />
+    <img alt="Rendered markdown notes" src="../../assets/screenshot-rendered-notes.png" loading="lazy" />
     <figcaption>Rendered markdown notes with highlighted tags.</figcaption>
   </figure>
 </div>

@@ -1,24 +1,26 @@
-@import url("https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap");
 
 :root {
-  --mint-radius: 12px;
-  --mint-radius-sm: 10px;
-  --mint-content-max: 860px;
+  --mint-radius: 16px;
+  --mint-radius-sm: 14px;
+  --mint-content-max: 1040px;
 }
 
 [data-md-color-scheme="default"] {
-  --mint-bg: #fafbfc;
-  --mint-panel: #ffffff;
-  --mint-panel-alt: #f5f7fa;
-  --mint-border: #e4e8ee;
-  --mint-text: #0f172a;
-  --mint-muted: #4b5563;
+  --mint-bg: #f5f2e8;
+  --mint-panel: rgba(255, 255, 255, 0.68);
+  --mint-panel-alt: rgba(255, 255, 255, 0.86);
+  --mint-border: rgba(24, 48, 42, 0.15);
+  --mint-text: #1d2b28;
+  --mint-muted: #44524c;
   --mint-accent: #0f766e;
-  --mint-accent-soft: #d8f3f0;
-  --mint-code-bg: #f6f8fa;
+  --mint-accent-soft: #fff5da;
+  --mint-code-bg: rgba(255, 255, 255, 0.5);
+  --bg-gradient-warm: #fff5da;
+  --bg-gradient-cool: #d9efe8;
+  --grain-dot: rgba(36, 44, 40, 0.08);
 
-  --md-default-bg-color: var(--mint-bg);
+  --md-default-bg-color: transparent;
   --md-default-fg-color: var(--mint-text);
   --md-default-fg-color--light: var(--mint-muted);
   --md-default-fg-color--lighter: #6b7280;
@@ -32,17 +34,21 @@
 }
 
 [data-md-color-scheme="slate"] {
-  --mint-bg: #0f1117;
-  --mint-panel: #121722;
-  --mint-panel-alt: #161d2b;
-  --mint-border: #293243;
-  --mint-text: #e5e7eb;
-  --mint-muted: #94a3b8;
-  --mint-accent: #2dd4bf;
-  --mint-accent-soft: #113b38;
-  --mint-code-bg: #121827;
+  --mint-bg: #141a1e;
+  --mint-bg-alt: #1a2228;
+  --mint-panel: rgba(30, 40, 38, 0.68);
+  --mint-panel-alt: rgba(30, 40, 38, 0.86);
+  --mint-border: rgba(200, 220, 210, 0.12);
+  --mint-text: #e0e4e0;
+  --mint-muted: #8a9490;
+  --mint-accent: #14b8a6;
+  --mint-accent-soft: rgba(20, 184, 166, 0.25);
+  --mint-code-bg: rgba(30, 40, 38, 0.5);
+  --bg-gradient-warm: #1e2a1e;
+  --bg-gradient-cool: #162028;
+  --grain-dot: rgba(200, 220, 210, 0.04);
 
-  --md-default-bg-color: var(--mint-bg);
+  --md-default-bg-color: transparent;
   --md-default-fg-color: var(--mint-text);
   --md-default-fg-color--light: var(--mint-muted);
   --md-default-fg-color--lighter: #94a3b8;
@@ -55,32 +61,55 @@
   --md-code-fg-color: #e5e7eb;
 }
 
+body {
+  background-color: var(--mint-bg);
+  background-image:
+    radial-gradient(circle at 20% 0%, var(--bg-gradient-warm) 0%, transparent 44%),
+    radial-gradient(circle at 92% 8%, var(--bg-gradient-cool) 0%, transparent 36%),
+    linear-gradient(165deg, var(--mint-bg) 0%, var(--mint-bg-alt, var(--mint-bg)) 100%);
+  background-attachment: fixed;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.22;
+  background-image: radial-gradient(var(--grain-dot) 0.45px, transparent 0.45px);
+  background-size: 4px 4px;
+  z-index: 10000;
+}
+
 body,
 .md-typeset,
 .md-nav,
 .md-search__form input {
-  font-family: "Satoshi", "Avenir Next", "Segoe UI", sans-serif;
-  font-feature-settings: "ss01", "cv03", "cv11";
+  font-family: "Space Grotesk", sans-serif;
 }
 
 .md-typeset h1,
-.md-typeset h2,
+.md-typeset h2 {
+  font-family: "Fraunces", serif;
+  line-height: 1.03;
+}
+
 .md-typeset h3,
 .md-typeset h4 {
-  font-family: "Satoshi", "Avenir Next", "Segoe UI", sans-serif;
+  font-family: "Space Grotesk", sans-serif;
   letter-spacing: -0.02em;
   line-height: 1.18;
 }
 
 .md-typeset h1 {
-  font-size: clamp(1.85rem, 2.8vw, 2.4rem);
-  font-weight: 900;
+  font-size: clamp(2rem, 7vw, 3rem);
+  font-weight: 700;
   margin-bottom: 0.9rem;
 }
 
 .md-typeset h2 {
-  font-size: clamp(1.35rem, 2.1vw, 1.8rem);
-  font-weight: 800;
+  font-size: clamp(1.6rem, 4.8vw, 2.2rem);
+  font-weight: 700;
   margin-top: 2.2rem;
 }
 
@@ -91,13 +120,13 @@ body,
 .md-typeset code,
 .md-typeset pre code,
 .md-search-result__article code {
-  font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.86em;
 }
 
 .md-typeset {
-  font-size: 0.82rem;
-  line-height: 1.66;
+  font-size: 0.95rem;
+  line-height: 1.6;
 }
 
 .md-typeset p,
@@ -113,6 +142,8 @@ body,
 
 .md-header {
   background: var(--mint-panel);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: var(--mint-text);
   border-bottom: 1px solid var(--mint-border);
   box-shadow: none;
@@ -150,14 +181,19 @@ body,
 
 .md-content__inner {
   background: var(--mint-panel);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
   border: 1px solid var(--mint-border);
   border-radius: var(--mint-radius);
   max-width: var(--mint-content-max);
   padding: 1.45rem 1.65rem;
+  box-shadow: 0 22px 55px rgba(0, 0, 0, 0.15);
 }
 
 .md-sidebar__scrollwrap {
   background: var(--mint-panel);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
   border: 1px solid var(--mint-border);
   border-radius: var(--mint-radius);
 }
@@ -178,7 +214,7 @@ body,
 }
 
 .md-nav__link {
-  font-size: 0.76rem;
+  font-size: 0.85rem;
 }
 
 .md-typeset a {
@@ -194,6 +230,7 @@ body,
 .md-typeset details {
   border-radius: var(--mint-radius-sm);
   border: 1px solid var(--mint-border);
+  background: var(--mint-panel-alt);
   box-shadow: none;
 }
 
@@ -248,10 +285,10 @@ body,
 .mint-kicker {
   margin: 0;
   text-transform: uppercase;
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
   color: var(--mint-accent);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .lw-callout,
@@ -296,11 +333,13 @@ body,
   border: 1px solid var(--mint-border);
   background: var(--mint-panel-alt);
   box-shadow: none;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.86rem;
 }
 
 @media (max-width: 960px) {
   .md-typeset {
-    font-size: 0.8rem;
+    font-size: 0.9rem;
     line-height: 1.62;
   }
 
