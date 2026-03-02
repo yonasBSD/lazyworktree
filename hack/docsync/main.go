@@ -9,8 +9,12 @@ import (
 	"go/parser"
 	"go/printer"
 	"go/token"
+	"io/fs"
+	"net/url"
 	"os"
+	pathpkg "path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -766,7 +770,132 @@ func verifySync(root string, data *docsSyncData) error {
 	if err := verifyKeybindingDocs(root); err != nil {
 		return err
 	}
+	if err := verifyRawHTMLLocalLinks(root); err != nil {
+		return err
+	}
 	return nil
+}
+
+var rawHTMLURLAttrPattern = regexp.MustCompile(`(?i)\b(?:src|href)\s*=\s*["']([^"']+)["']`)
+
+func verifyRawHTMLLocalLinks(root string) error {
+	docsRoot := filepath.Join(root, "docs")
+	var failures []string
+
+	err := filepath.WalkDir(docsRoot, func(filePath string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() || filepath.Ext(filePath) != ".md" {
+			return nil
+		}
+		// #nosec G304 -- path is discovered under repository docs root.
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			return err
+		}
+		relPath, err := filepath.Rel(docsRoot, filePath)
+		if err != nil {
+			return err
+		}
+
+		base := markdownRouteBase(relPath)
+		inFence := false
+		lines := strings.Split(string(content), "\n")
+		for i, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "```") {
+				inFence = !inFence
+				continue
+			}
+			if inFence {
+				continue
+			}
+			matches := rawHTMLURLAttrPattern.FindAllStringSubmatch(line, -1)
+			for _, match := range matches {
+				if len(match) < 2 {
+					continue
+				}
+				ref := strings.TrimSpace(match[1])
+				if skipRawHTMLLocalLinkCheck(ref) {
+					continue
+				}
+				target, resolveErr := resolveRouteRelativePath(base, ref)
+				if resolveErr != nil {
+					failures = append(failures, fmt.Sprintf("%s:%d invalid link %q: %v", filepath.ToSlash(relPath), i+1, ref, resolveErr))
+					continue
+				}
+				if !routeTargetExists(docsRoot, target) {
+					failures = append(failures, fmt.Sprintf("%s:%d unresolved %q (resolved to /%s)", filepath.ToSlash(relPath), i+1, ref, target))
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("raw HTML link verification failed: %w", err)
+	}
+	if len(failures) > 0 {
+		sort.Strings(failures)
+		return fmt.Errorf("raw HTML links with unresolved local targets:\n- %s", strings.Join(failures, "\n- "))
+	}
+	return nil
+}
+
+func markdownRouteBase(relPath string) string {
+	p := filepath.ToSlash(relPath)
+	switch {
+	case strings.HasSuffix(p, "/index.md"):
+		return "/" + strings.TrimSuffix(p, "index.md")
+	case strings.HasSuffix(p, ".md"):
+		return "/" + strings.TrimSuffix(p, ".md") + "/"
+	default:
+		return "/"
+	}
+}
+
+func skipRawHTMLLocalLinkCheck(ref string) bool {
+	if ref == "" {
+		return true
+	}
+	lower := strings.ToLower(ref)
+	return strings.HasPrefix(lower, "#") ||
+		strings.HasPrefix(lower, "http://") ||
+		strings.HasPrefix(lower, "https://") ||
+		strings.HasPrefix(lower, "mailto:") ||
+		strings.HasPrefix(lower, "tel:") ||
+		strings.HasPrefix(lower, "data:") ||
+		strings.HasPrefix(lower, "javascript:") ||
+		strings.HasPrefix(lower, "//")
+}
+
+func resolveRouteRelativePath(base, ref string) (string, error) {
+	u, err := url.Parse(ref)
+	if err != nil {
+		return "", err
+	}
+	resolved := (&url.URL{Path: base}).ResolveReference(u).Path
+	if resolved == "" || resolved == "/" {
+		return "", nil
+	}
+	return strings.TrimPrefix(pathpkg.Clean(resolved), "/"), nil
+}
+
+func routeTargetExists(docsRoot, target string) bool {
+	if target == "" {
+		return true
+	}
+	candidates := []string{
+		filepath.Join(docsRoot, filepath.FromSlash(target)),
+		filepath.Join(docsRoot, filepath.FromSlash(target)+".md"),
+		filepath.Join(docsRoot, filepath.FromSlash(target), "index.md"),
+	}
+	for _, candidate := range candidates {
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return true
+		}
+	}
+	return false
 }
 
 func verifyCommandDocs(root string, commands []commandSpec) error {

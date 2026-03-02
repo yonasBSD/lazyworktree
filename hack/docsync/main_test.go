@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -78,6 +79,30 @@ func TestRenderCLIFlagsPageContainsValidationRules(t *testing.T) {
 	}
 }
 
+func TestVerifyRawHTMLLocalLinksDetectsBrokenAssetPath(t *testing.T) {
+	root := t.TempDir()
+	mustWriteFile(t, filepath.Join(root, "docs", "assets", "ok.png"), []byte("png"))
+	mustWriteFile(t, filepath.Join(root, "docs", "core", "page.md"), []byte(`<img src="../assets/ok.png" alt="bad">`))
+
+	err := verifyRawHTMLLocalLinks(root)
+	if err == nil {
+		t.Fatalf("expected raw HTML link verification to fail")
+	}
+	if !strings.Contains(err.Error(), "resolved to /core/assets/ok.png") {
+		t.Fatalf("expected resolved path in error, got: %v", err)
+	}
+}
+
+func TestVerifyRawHTMLLocalLinksAcceptsCorrectAssetPath(t *testing.T) {
+	root := t.TempDir()
+	mustWriteFile(t, filepath.Join(root, "docs", "assets", "ok.png"), []byte("png"))
+	mustWriteFile(t, filepath.Join(root, "docs", "core", "page.md"), []byte(`<img src="../../assets/ok.png" alt="good">`))
+
+	if err := verifyRawHTMLLocalLinks(root); err != nil {
+		t.Fatalf("expected raw HTML link verification to pass, got: %v", err)
+	}
+}
+
 func containsFlag(flags []flagSpec, name string) bool {
 	for _, flag := range flags {
 		if flag.Name == name {
@@ -118,4 +143,14 @@ func mustGetCommand(commands []commandSpec, name string, t *testing.T) commandSp
 
 func contains(content, needle string) bool {
 	return strings.Contains(content, needle)
+}
+
+func mustWriteFile(t *testing.T, path string, content []byte) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	if err := os.WriteFile(path, content, 0o600); err != nil {
+		t.Fatalf("write failed: %v", err)
+	}
 }
