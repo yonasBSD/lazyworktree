@@ -1622,9 +1622,11 @@ func (s *Service) RenameWorktree(ctx context.Context, oldPath, newPath, oldBranc
 
 // prRefInfo holds the result of fetching PR/MR ref information from GitHub or GitLab.
 type prRefInfo struct {
-	headCommit string
-	repoURL    string
-	mergeRef   string
+	headCommit     string
+	repoURL        string
+	mergeRef       string
+	headRefName    string
+	remoteNameHint string
 }
 
 // fetchPRRefInfo fetches the head commit, repo URL, and merge ref for a PR/MR.
@@ -1635,7 +1637,7 @@ func (s *Service) fetchPRRefInfo(ctx context.Context, prNumber int, remoteBranch
 	case gitHostGithub:
 		prRaw := s.RunGit(ctx, []string{
 			"gh", "pr", "view", fmt.Sprintf("%d", prNumber),
-			"--json", "headRefOid,headRepository",
+			"--json", "headRefOid,headRefName,headRepository,headRepositoryOwner",
 		}, "", []int{0}, true, true)
 		if prRaw == "" {
 			s.notify(fmt.Sprintf("Failed to get PR #%d info", prNumber), "error")
@@ -1651,6 +1653,14 @@ func (s *Service) fetchPRRefInfo(ctx context.Context, prNumber int, remoteBranch
 			s.notify(fmt.Sprintf("Failed to get PR #%d head commit", prNumber), "error")
 			return nil, false
 		}
+		headRefName, _ := pr["headRefName"].(string)
+		if headRefName == "" {
+			headRefName = remoteBranch
+		}
+		if headRefName == "" {
+			s.notify(fmt.Sprintf("Failed to get PR #%d head ref name", prNumber), "error")
+			return nil, false
+		}
 		var repoURL string
 		if headRepo, ok := pr["headRepository"].(map[string]any); ok {
 			repoURL, _ = headRepo["url"].(string)
@@ -1658,11 +1668,29 @@ func (s *Service) fetchPRRefInfo(ctx context.Context, prNumber int, remoteBranch
 		if repoURL == "" {
 			repoURL = s.getRemoteURL(ctx)
 		}
-		mergeRef := fmt.Sprintf("refs/pull/%d/head", prNumber)
-		if !s.RunCommandChecked(ctx, []string{"git", "fetch", "origin", fmt.Sprintf("pull/%d/head", prNumber)}, "", fmt.Sprintf("Failed to fetch PR #%d", prNumber)) {
+
+		owner := ""
+		if headOwner, ok := pr["headRepositoryOwner"].(map[string]any); ok {
+			owner, _ = headOwner["login"].(string)
+		}
+		if owner == "" {
+			owner = ownerFromRepoURL(repoURL)
+		}
+
+		remoteName := s.ensureRemoteForRepoURL(ctx, "", owner, repoURL)
+		if remoteName == "" {
+			remoteName = "origin"
+		}
+		if !s.RunCommandChecked(ctx, []string{"git", "fetch", remoteName, headRefName}, "", fmt.Sprintf("Failed to fetch PR #%d", prNumber)) {
 			return nil, false
 		}
-		return &prRefInfo{headCommit: headCommit, repoURL: repoURL, mergeRef: mergeRef}, true
+		return &prRefInfo{
+			headCommit:     headCommit,
+			repoURL:        repoURL,
+			mergeRef:       mergeRefForBranch(headRefName),
+			headRefName:    headRefName,
+			remoteNameHint: owner,
+		}, true
 
 	case gitHostGitLab:
 		mrRaw := s.RunGit(ctx, []string{
@@ -1687,27 +1715,178 @@ func (s *Service) fetchPRRefInfo(ctx context.Context, prNumber int, remoteBranch
 		if sourceBranch == "" {
 			sourceBranch = remoteBranch
 		}
-		repoURL := s.getRemoteURL(ctx)
-		mergeRef := fmt.Sprintf("refs/heads/%s", sourceBranch)
-		if !s.RunCommandChecked(ctx, []string{"git", "fetch", "origin", fmt.Sprintf("refs/heads/%s", sourceBranch)}, "", fmt.Sprintf("Failed to fetch MR #%d", prNumber)) {
+		if sourceBranch == "" {
+			s.notify(fmt.Sprintf("Failed to get MR #%d source branch", prNumber), "error")
 			return nil, false
 		}
-		return &prRefInfo{headCommit: headCommit, repoURL: repoURL, mergeRef: mergeRef}, true
+		repoURL := s.getRemoteURL(ctx)
+		remoteName := s.ensureRemoteForRepoURL(ctx, "", ownerFromRepoURL(repoURL), repoURL)
+		if remoteName == "" {
+			remoteName = "origin"
+		}
+		if !s.RunCommandChecked(ctx, []string{"git", "fetch", remoteName, sourceBranch}, "", fmt.Sprintf("Failed to fetch MR #%d", prNumber)) {
+			return nil, false
+		}
+		return &prRefInfo{
+			headCommit:     headCommit,
+			repoURL:        repoURL,
+			mergeRef:       mergeRefForBranch(sourceBranch),
+			headRefName:    sourceBranch,
+			remoteNameHint: ownerFromRepoURL(repoURL),
+		}, true
 	}
 	return nil, false
 }
 
+func mergeRefForBranch(branch string) string {
+	branch = strings.TrimSpace(branch)
+	if branch == "" {
+		return ""
+	}
+	if strings.HasPrefix(branch, "refs/") {
+		return branch
+	}
+	return "refs/heads/" + strings.TrimPrefix(branch, "refs/heads/")
+}
+
+func ownerFromRepoURL(repoURL string) string {
+	repoURL = strings.TrimSpace(repoURL)
+	if repoURL == "" {
+		return ""
+	}
+
+	normalized := strings.TrimSuffix(repoURL, ".git")
+	normalized = strings.TrimRight(normalized, "/")
+	if normalized == "" {
+		return ""
+	}
+
+	// Handle scp-like syntax: git@host:owner/repo
+	if i := strings.Index(normalized, ":"); i > 0 && strings.Contains(normalized[:i], "@") {
+		pathPart := strings.TrimLeft(normalized[i+1:], "/")
+		parts := strings.Split(pathPart, "/")
+		if len(parts) >= 2 {
+			return sanitizeRemoteName(parts[0])
+		}
+		return sanitizeRemoteName(pathPart)
+	}
+
+	parts := strings.Split(normalized, "/")
+	if len(parts) >= 2 {
+		return sanitizeRemoteName(parts[len(parts)-2])
+	}
+	return sanitizeRemoteName(parts[len(parts)-1])
+}
+
+func sanitizeRemoteName(name string) string {
+	name = strings.TrimSpace(strings.ToLower(name))
+	if name == "" {
+		return ""
+	}
+	var b strings.Builder
+	for _, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r)
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '-', r == '_', r == '.':
+			b.WriteRune(r)
+		default:
+			b.WriteByte('-')
+		}
+	}
+	sanitized := strings.Trim(b.String(), "-_.")
+	return sanitized
+}
+
+func (s *Service) remoteURLForName(ctx context.Context, cwd, remoteName string) string {
+	return strings.TrimSpace(s.RunGit(ctx, []string{"git", "remote", "get-url", remoteName}, cwd, []int{0}, true, true))
+}
+
+func (s *Service) remoteNameForURL(ctx context.Context, cwd, repoURL string) (string, bool) {
+	repoURL = strings.TrimSpace(repoURL)
+	if repoURL == "" {
+		return "", false
+	}
+
+	remotes := strings.TrimSpace(s.RunGit(ctx, []string{"git", "remote"}, cwd, []int{0}, true, true))
+	if remotes == "" {
+		return "", false
+	}
+
+	for _, line := range strings.Split(remotes, "\n") {
+		remoteName := strings.TrimSpace(line)
+		if remoteName == "" {
+			continue
+		}
+		if s.remoteURLForName(ctx, cwd, remoteName) == repoURL {
+			return remoteName, true
+		}
+	}
+
+	return "", false
+}
+
+func (s *Service) ensureRemoteForRepoURL(ctx context.Context, cwd, preferredName, repoURL string) string {
+	repoURL = strings.TrimSpace(repoURL)
+	if repoURL == "" {
+		return ""
+	}
+	if existingName, ok := s.remoteNameForURL(ctx, cwd, repoURL); ok {
+		return existingName
+	}
+
+	baseName := sanitizeRemoteName(preferredName)
+	if baseName == "" {
+		baseName = ownerFromRepoURL(repoURL)
+	}
+	if baseName == "" {
+		baseName = "pr-remote"
+	}
+
+	candidate := baseName
+	for i := 2; i <= 1000; i++ {
+		existingURL := s.remoteURLForName(ctx, cwd, candidate)
+		if existingURL == "" {
+			if s.RunCommandChecked(ctx, []string{"git", "remote", "add", candidate, repoURL}, cwd, fmt.Sprintf("Failed to add remote %q", candidate)) {
+				return candidate
+			}
+			return ""
+		}
+		if existingURL == repoURL {
+			return candidate
+		}
+		candidate = fmt.Sprintf("%s-%d", baseName, i)
+	}
+
+	return ""
+}
+
 // configureBranchTracking sets up branch tracking config replicating gh/glab pr checkout behaviour.
 func (s *Service) configureBranchTracking(ctx context.Context, localBranch, cwd string, ref *prRefInfo) {
-	if ref.repoURL == "" {
+	if ref == nil {
 		return
 	}
-	host := s.DetectHost(ctx)
-	s.RunGit(ctx, []string{"git", "config", fmt.Sprintf("branch.%s.remote", localBranch), ref.repoURL}, cwd, []int{0}, true, true)
-	if host == gitHostGithub {
-		s.RunGit(ctx, []string{"git", "config", fmt.Sprintf("branch.%s.pushRemote", localBranch), ref.repoURL}, cwd, []int{0}, true, true)
+
+	remoteName := ""
+	if ref.repoURL != "" {
+		remoteName = s.ensureRemoteForRepoURL(ctx, cwd, ref.remoteNameHint, ref.repoURL)
 	}
-	s.RunGit(ctx, []string{"git", "config", fmt.Sprintf("branch.%s.merge", localBranch), ref.mergeRef}, cwd, []int{0}, true, true)
+	if remoteName == "" {
+		remoteName = "origin"
+	}
+
+	mergeRef := strings.TrimSpace(ref.mergeRef)
+	if mergeRef == "" {
+		mergeRef = mergeRefForBranch(ref.headRefName)
+	}
+
+	s.RunGit(ctx, []string{"git", "config", fmt.Sprintf("branch.%s.remote", localBranch), remoteName}, cwd, []int{0}, true, true)
+	s.RunGit(ctx, []string{"git", "config", fmt.Sprintf("branch.%s.pushRemote", localBranch), remoteName}, cwd, []int{0}, true, true)
+	if mergeRef != "" {
+		s.RunGit(ctx, []string{"git", "config", fmt.Sprintf("branch.%s.merge", localBranch), mergeRef}, cwd, []int{0}, true, true)
+	}
 }
 
 func (s *Service) findWorktreePathForBranch(ctx context.Context, branch string) (string, bool) {
@@ -1788,7 +1967,16 @@ func (s *Service) CreateWorktreeFromPR(ctx context.Context, prNumber int, remote
 		if !s.syncPRLocalBranch(ctx, localBranch, remoteRef) {
 			return false
 		}
-		return s.RunCommandChecked(ctx, []string{"git", "worktree", "add", targetPath, localBranch}, "", fmt.Sprintf("Failed to create worktree from PR branch %s", remoteBranch))
+		if !s.RunCommandChecked(ctx, []string{"git", "worktree", "add", targetPath, localBranch}, "", fmt.Sprintf("Failed to create worktree from PR branch %s", remoteBranch)) {
+			return false
+		}
+		s.configureBranchTracking(ctx, localBranch, targetPath, &prRefInfo{
+			repoURL:        s.getRemoteURL(ctx),
+			mergeRef:       mergeRefForBranch(remoteBranch),
+			headRefName:    remoteBranch,
+			remoteNameHint: "origin",
+		})
+		return true
 	}
 
 	ref, ok := s.fetchPRRefInfo(ctx, prNumber, remoteBranch)
@@ -1818,6 +2006,12 @@ func (s *Service) CheckoutPRBranch(ctx context.Context, prNumber int, remoteBran
 		if !s.syncPRLocalBranch(ctx, localBranch, remoteRef) {
 			return false
 		}
+		s.configureBranchTracking(ctx, localBranch, "", &prRefInfo{
+			repoURL:        s.getRemoteURL(ctx),
+			mergeRef:       mergeRefForBranch(remoteBranch),
+			headRefName:    remoteBranch,
+			remoteNameHint: "origin",
+		})
 		return s.RunCommandChecked(ctx, []string{"git", "switch", localBranch}, "", fmt.Sprintf("Failed to switch to branch %s", localBranch))
 	}
 
