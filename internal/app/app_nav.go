@@ -182,7 +182,12 @@ func (m *Model) updateTable() {
 			worktreeIcon = UIIconWorktreeMain
 			name = mainWorktreeName
 		}
-		name = "  " + iconPrefix(worktreeIcon, showIcons) + name
+
+		prefix := iconPrefix(worktreeIcon, showIcons)
+		if note, ok := m.getWorktreeNote(wt.Path); ok && note.Icon != "" && showIcons {
+			prefix = note.Icon + " "
+		}
+		name = "  " + prefix + name
 
 		// Truncate to configured max length with ellipsis if needed
 		if m.config.MaxNameLength > 0 {

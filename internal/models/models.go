@@ -72,8 +72,9 @@ type WorktreeInfo struct {
 
 // WorktreeNote stores user-authored metadata for a worktree.
 type WorktreeNote struct {
-	Note      string
-	UpdatedAt int64
+	Note      string `json:"note,omitempty"`
+	Icon      string `json:"icon,omitempty"`
+	UpdatedAt int64  `json:"updated_at"`
 }
 
 const (

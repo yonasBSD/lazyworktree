@@ -59,6 +59,7 @@ Press `=` to toggle zoom for the focused pane, expanding it to fill the entire s
 
 - `Enter` — jump to selected worktree (exits LazyWorktree and outputs the path)
 - `s` — cycle sort mode: Path, Last Active (commit date), Last Switched (access time)
+- `I` — set a custom icon for the selected worktree
 
 ### Git Status Pane
 
@@ -106,3 +107,4 @@ Press `=` to toggle zoom for the focused pane, expanding it to fill the entire s
 ## Full Reference
 
 For complete pane-by-pane key coverage, see [Key Bindings Reference](../keybindings.md).
+For a guided icon customisation workflow, see [Worktree Operations](worktree-operations.md#custom-worktree-icons).

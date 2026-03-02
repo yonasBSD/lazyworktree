@@ -585,8 +585,8 @@ func (m *Model) showAnnotateWorktree() tea.Cmd {
 	if m.state.view.FocusedPane == 4 {
 		return m.showWorktreeNoteEditor(wt.Path)
 	}
-	existing, hasNote := m.getWorktreeNote(wt.Path)
-	if hasNote {
+	existing, ok := m.getWorktreeNote(wt.Path)
+	if ok && existing.Note != "" {
 		return m.showWorktreeNoteViewer(wt.Path, existing.Note)
 	}
 	return m.showWorktreeNoteEditor(wt.Path)

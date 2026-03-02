@@ -19,6 +19,31 @@ Create and manage multiple active branches in parallel without branch checkout c
 | Prune | Remove merged worktrees in bulk | `X` in TUI |
 | Sync | Pull and push clean worktrees | `S` in TUI |
 
+## Custom worktree icons
+
+You can assign a custom icon to each worktree, making it easier to recognise context at a glance in busy repositories.
+
+![Worktree icon picker](../assets/icon-picker.png)
+
+### How to set an icon
+
+1. Select a worktree in the Worktree pane.
+2. Press `I` to open **Set worktree icon**.
+3. Use `j`/`k` to move, `f` to filter, then `Enter` to select.
+
+You can also open this action from the command palette (`Ctrl+p` or `:`) by searching for **Set worktree icon**.
+
+To return to the default icon, choose **Default Folder** in the picker.
+
+### Practical use cases
+
+- Use `🐛` or `` for bug-fix worktrees.
+- Use `📚` for documentation updates.
+- Use `` or `󱃾` for infrastructure and platform changes.
+- Use `🚀` or `󰜎` for feature delivery streams.
+
+For teams, adopting a simple icon convention improves visual scanning during reviews, pairing, and release preparation.
+
 ### Default Location
 
 Worktrees are created under:

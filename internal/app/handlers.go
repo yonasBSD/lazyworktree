@@ -669,6 +669,9 @@ func (m *Model) handleBuiltInKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "i":
 		return m, m.showAnnotateWorktree()
 
+	case "I":
+		return m, m.showSetWorktreeIcon()
+
 	case "T":
 		return m, m.showTaskboard()
 

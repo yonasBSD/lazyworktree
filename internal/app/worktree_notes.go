@@ -72,7 +72,7 @@ func (m *Model) getWorktreeNote(path string) (models.WorktreeNote, bool) {
 	if !ok {
 		return models.WorktreeNote{}, false
 	}
-	if strings.TrimSpace(note.Note) == "" {
+	if strings.TrimSpace(note.Note) == "" && strings.TrimSpace(note.Icon) == "" {
 		return models.WorktreeNote{}, false
 	}
 	return note, true
@@ -88,7 +88,9 @@ func (m *Model) setWorktreeNote(path, noteText string) {
 
 	trimmed := strings.TrimSpace(noteText)
 	key := m.worktreeNoteKey(path)
-	if trimmed == "" {
+	existing := m.worktreeNotes[key]
+
+	if trimmed == "" && existing.Icon == "" {
 		delete(m.worktreeNotes, key)
 		m.saveWorktreeNotes()
 		m.refreshSelectedWorktreeNotesPane()
@@ -97,6 +99,38 @@ func (m *Model) setWorktreeNote(path, noteText string) {
 
 	m.worktreeNotes[key] = models.WorktreeNote{
 		Note:      trimmed,
+		Icon:      existing.Icon,
+		UpdatedAt: time.Now().Unix(),
+	}
+	if m.getWorktreeNotesPath() != "" {
+		delete(m.worktreeNotes, filepath.Clean(path))
+	}
+	m.saveWorktreeNotes()
+	m.refreshSelectedWorktreeNotesPane()
+}
+
+func (m *Model) setWorktreeIcon(path, icon string) {
+	if strings.TrimSpace(path) == "" {
+		return
+	}
+	if m.worktreeNotes == nil {
+		m.worktreeNotes = make(map[string]models.WorktreeNote)
+	}
+
+	trimmedIcon := strings.TrimSpace(icon)
+	key := m.worktreeNoteKey(path)
+	existing := m.worktreeNotes[key]
+
+	if trimmedIcon == "" && existing.Note == "" {
+		delete(m.worktreeNotes, key)
+		m.saveWorktreeNotes()
+		m.refreshSelectedWorktreeNotesPane()
+		return
+	}
+
+	m.worktreeNotes[key] = models.WorktreeNote{
+		Note:      existing.Note,
+		Icon:      trimmedIcon,
 		UpdatedAt: time.Now().Unix(),
 	}
 	if m.getWorktreeNotesPath() != "" {
@@ -139,8 +173,8 @@ func (m *Model) hasNoteForSelectedWorktree() bool {
 	if wt == nil {
 		return false
 	}
-	_, ok := m.getWorktreeNote(wt.Path)
-	return ok
+	note, ok := m.getWorktreeNote(wt.Path)
+	return ok && note.Note != ""
 }
 
 func (m *Model) refreshSelectedWorktreeNotesPane() {

@@ -366,11 +366,13 @@ func normalizeWorktreeNotes(notes map[string]models.WorktreeNote) map[string]mod
 
 	normalized := make(map[string]models.WorktreeNote, len(notes))
 	for noteKey, note := range notes {
-		trimmed := strings.TrimSpace(note.Note)
-		if trimmed == "" {
+		trimmedNote := strings.TrimSpace(note.Note)
+		trimmedIcon := strings.TrimSpace(note.Icon)
+		if trimmedNote == "" && trimmedIcon == "" {
 			continue
 		}
-		note.Note = trimmed
+		note.Note = trimmedNote
+		note.Icon = trimmedIcon
 		normalized[noteKey] = note
 	}
 	return normalized
