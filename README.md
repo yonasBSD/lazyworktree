@@ -29,8 +29,7 @@ Useful entry points:
 - CLI flags reference: <https://chmouel.github.io/lazyworktree/docs/cli/flags/>
 - CLI commands reference: <https://chmouel.github.io/lazyworktree/docs/cli/commands/>
 - Troubleshooting: <https://chmouel.github.io/lazyworktree/docs/troubleshooting/common-problems/>
-- Screenshots: <https://chmouel.github.io/lazyworktree/docs/screenshots/>
-
+- 
 ## Screenshot
 
 ![lazyworktree screenshot](./website/assets/screenshot-main.png)
