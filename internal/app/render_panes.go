@@ -825,54 +825,53 @@ func (m *Model) buildInfoContent(wt *models.WorktreeInfo) string {
 		// // URL styled with cyan for consistency
 		infoLines = append(infoLines, fmt.Sprintf("  %s", wt.PR.URL))
 	} else if wt.PR == nil && !m.config.DisablePR && wt.HasUpstream {
-		// Show PR status/error when PR is nil
-		grayStyle := lipgloss.NewStyle().Foreground(m.theme.MutedFg)
-		errorStyle := lipgloss.NewStyle().Foreground(m.theme.ErrorFg)
-		prLabelStyle := lipgloss.NewStyle().Foreground(m.theme.Accent).Bold(true)
-		prPrefix := "PR:"
-		if m.config.IconsEnabled() {
-			prPrefix = iconWithSpace(getIconPR()) + prPrefix
-		}
-
-		infoLines = append(infoLines, m.infoSectionDivider(30))
-		infoLines = append(infoLines, prLabelStyle.Render(prPrefix))
-
-		switch wt.PRFetchStatus {
-		case models.PRFetchStatusLoaded:
-			// This shouldn't happen (PR is nil but status is loaded) - show debug info
-			infoLines = append(infoLines, errorStyle.Render("  PR Status: Loaded but nil (bug)"))
-
-		case models.PRFetchStatusError:
-			infoLines = append(infoLines, valueStyle.Bold(true).Render("  PR Status:"))
-			infoLines = append(infoLines, errorStyle.Render("    Fetch failed"))
-
-			// Provide helpful error messages based on error content
-			switch {
-			case strings.Contains(wt.PRFetchError, "not found") || strings.Contains(wt.PRFetchError, "PATH"):
-				infoLines = append(infoLines, grayStyle.Render("    gh/glab CLI not found"))
-				infoLines = append(infoLines, grayStyle.Render("    Install from https://cli.github.com"))
-			case strings.Contains(wt.PRFetchError, "auth") || strings.Contains(wt.PRFetchError, "401"):
-				infoLines = append(infoLines, grayStyle.Render("    Authentication failed"))
-				infoLines = append(infoLines, grayStyle.Render("    Run 'gh auth login' or 'glab auth login'"))
-			case wt.PRFetchError != "":
-				infoLines = append(infoLines, grayStyle.Render(fmt.Sprintf("    %s", wt.PRFetchError)))
+		// Skip the PR section entirely when there is nothing actionable to show:
+		// - confirmed no PR exists, or
+		// - on the main branch before any fetch has completed (avoids noise)
+		skipPRSection := wt.PRFetchStatus == models.PRFetchStatusNoPR ||
+			(isMainBranch && !m.prDataLoaded &&
+				wt.PRFetchStatus != models.PRFetchStatusFetching &&
+				wt.PRFetchStatus != models.PRFetchStatusError &&
+				wt.PRFetchStatus != models.PRFetchStatusLoaded)
+		if !skipPRSection {
+			grayStyle := lipgloss.NewStyle().Foreground(m.theme.MutedFg)
+			errorStyle := lipgloss.NewStyle().Foreground(m.theme.ErrorFg)
+			prLabelStyle := lipgloss.NewStyle().Foreground(m.theme.Accent).Bold(true)
+			prPrefix := "PR:"
+			if m.config.IconsEnabled() {
+				prPrefix = iconWithSpace(getIconPR()) + prPrefix
 			}
 
-		case models.PRFetchStatusNoPR:
-			if m.prDataLoaded {
-				// Fetch was attempted, no error, no PR found - this is expected
-				infoLines = append(infoLines, grayStyle.Render("  No PR for this branch"))
-			}
+			infoLines = append(infoLines, m.infoSectionDivider(30))
+			infoLines = append(infoLines, prLabelStyle.Render(prPrefix))
 
-		case models.PRFetchStatusFetching:
-			infoLines = append(infoLines, grayStyle.Render("  Fetching PR data..."))
+			switch wt.PRFetchStatus {
+			case models.PRFetchStatusLoaded:
+				// This shouldn't happen (PR is nil but status is loaded) - show debug info
+				infoLines = append(infoLines, errorStyle.Render("  PR Status: Loaded but nil (bug)"))
 
-		default:
-			// Not fetched yet
-			if !m.prDataLoaded {
-				if isMainBranch {
-					infoLines = append(infoLines, grayStyle.Render("  Main branch usually has no PR"))
-				} else {
+			case models.PRFetchStatusError:
+				infoLines = append(infoLines, valueStyle.Bold(true).Render("  PR Status:"))
+				infoLines = append(infoLines, errorStyle.Render("    Fetch failed"))
+
+				// Provide helpful error messages based on error content
+				switch {
+				case strings.Contains(wt.PRFetchError, "not found") || strings.Contains(wt.PRFetchError, "PATH"):
+					infoLines = append(infoLines, grayStyle.Render("    gh/glab CLI not found"))
+					infoLines = append(infoLines, grayStyle.Render("    Install from https://cli.github.com"))
+				case strings.Contains(wt.PRFetchError, "auth") || strings.Contains(wt.PRFetchError, "401"):
+					infoLines = append(infoLines, grayStyle.Render("    Authentication failed"))
+					infoLines = append(infoLines, grayStyle.Render("    Run 'gh auth login' or 'glab auth login'"))
+				case wt.PRFetchError != "":
+					infoLines = append(infoLines, grayStyle.Render(fmt.Sprintf("    %s", wt.PRFetchError)))
+				}
+
+			case models.PRFetchStatusFetching:
+				infoLines = append(infoLines, grayStyle.Render("  Fetching PR data..."))
+
+			default:
+				// Not fetched yet (non-main branch)
+				if !m.prDataLoaded {
 					infoLines = append(infoLines, grayStyle.Render("  Press 'r' to refresh and fetch PR data"))
 				}
 			}

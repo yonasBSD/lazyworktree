@@ -96,8 +96,11 @@ func TestBuildInfoContentMainBranchWithoutPRHidesFetchHint(t *testing.T) {
 	if strings.Contains(info, "Press 'r' to refresh and fetch PR data") {
 		t.Fatalf("did not expect fetch hint on main branch, got %q", info)
 	}
-	if !strings.Contains(info, "Main branch usually has no PR") {
-		t.Fatalf("expected main-branch message, got %q", info)
+	if strings.Contains(info, "Main branch usually has no PR") {
+		t.Fatalf("did not expect main-branch message when PR section is hidden, got %q", info)
+	}
+	if strings.Contains(info, "PR:") {
+		t.Fatalf("did not expect PR section on main branch before fetch, got %q", info)
 	}
 }
 
