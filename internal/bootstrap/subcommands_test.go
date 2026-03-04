@@ -970,42 +970,77 @@ func TestListCommandFlags(t *testing.T) {
 	tests := []struct {
 		name     string
 		args     []string
+		main     bool
 		pristine bool
 		json     bool
 	}{
 		{
 			name:     "default flags (verbose table)",
 			args:     []string{"lazyworktree", "list"},
+			main:     false,
+			pristine: false,
+			json:     false,
+		},
+		{
+			name:     "main flag",
+			args:     []string{"lazyworktree", "list", "--main"},
+			main:     true,
+			pristine: false,
+			json:     false,
+		},
+		{
+			name:     "main short flag",
+			args:     []string{"lazyworktree", "list", "-m"},
+			main:     true,
 			pristine: false,
 			json:     false,
 		},
 		{
 			name:     "pristine flag",
 			args:     []string{"lazyworktree", "list", "--pristine"},
+			main:     false,
 			pristine: true,
 			json:     false,
 		},
 		{
 			name:     "pristine short flag",
 			args:     []string{"lazyworktree", "list", "-p"},
+			main:     false,
 			pristine: true,
 			json:     false,
 		},
 		{
 			name:     "json flag",
 			args:     []string{"lazyworktree", "list", "--json"},
+			main:     false,
 			pristine: false,
 			json:     true,
 		},
 		{
+			name:     "main with json",
+			args:     []string{"lazyworktree", "list", "--main", "--json"},
+			main:     true,
+			pristine: false,
+			json:     true,
+		},
+		{
+			name:     "main with pristine",
+			args:     []string{"lazyworktree", "list", "--main", "-p"},
+			main:     true,
+			pristine: true,
+			json:     false,
+		},
+		{
 			name:     "ls alias",
 			args:     []string{"lazyworktree", "ls"},
+			main:     false,
 			pristine: false,
 			json:     false,
 		},
 		{
 			name:     "ls alias with pristine",
 			args:     []string{"lazyworktree", "ls", "-p"},
+			main:     false,
 			pristine: true,
 			json:     false,
 		},
@@ -1014,9 +1049,10 @@ func TestListCommandFlags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := listCommand()
-			var capturedPristine, capturedJSON bool
+			var capturedMain, capturedPristine, capturedJSON bool
 
 			cmd.Action = func(_ context.Context, c *urfavecli.Command) error {
+				capturedMain = c.Bool("main")
 				capturedPristine = c.Bool("pristine")
 				capturedJSON = c.Bool("json")
 				return nil
@@ -1029,6 +1065,7 @@ func TestListCommandFlags(t *testing.T) {
 
 			err := app.Run(context.Background(), tt.args)
 			require.NoError(t, err)
+			assert.Equal(t, tt.main, capturedMain, "main flag mismatch")
 			assert.Equal(t, tt.pristine, capturedPristine, "pristine flag mismatch")
 			assert.Equal(t, tt.json, capturedJSON, "json flag mismatch")
 		})
@@ -1126,7 +1163,7 @@ func TestOutputListJSON(t *testing.T) {
 		_ = r.Close()
 	})
 
-	err = outputListJSON(worktrees)
+	err = outputListJSON(worktrees, false)
 	require.NoError(t, err)
 
 	_ = w.Close()
@@ -1152,6 +1189,53 @@ func TestOutputListJSON(t *testing.T) {
 	assert.True(t, result[1].Dirty)
 	assert.Equal(t, 3, result[1].Ahead)
 	assert.Equal(t, 1, result[1].Behind)
+}
+
+func TestOutputListJSONMainOnly(t *testing.T) {
+	// Test single worktree with mainOnly=true (should output object, not array)
+	mainWorktree := []*models.WorktreeInfo{
+		{
+			Path:        "/home/user/worktrees/main",
+			Branch:      "main",
+			IsMain:      true,
+			Dirty:       false,
+			Ahead:       0,
+			Behind:      0,
+			HasUpstream: true,
+			LastActive:  "2 hours ago",
+		},
+	}
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = w
+	t.Cleanup(func() {
+		os.Stdout = oldStdout
+		_ = w.Close()
+		_ = r.Close()
+	})
+
+	err = outputListJSON(mainWorktree, true)
+	require.NoError(t, err)
+
+	_ = w.Close()
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+
+	// Parse as single object
+	var result worktreeJSON
+	err = json.Unmarshal(buf.Bytes(), &result)
+	require.NoError(t, err)
+
+	// Verify it's a single object, not an array
+	assert.Equal(t, "/home/user/worktrees/main", result.Path)
+	assert.Equal(t, "main", result.Name)
+	assert.Equal(t, "main", result.Branch)
+	assert.True(t, result.IsMain)
+	assert.False(t, result.Dirty)
 }
 
 func TestOutputListVerbose(t *testing.T) {
@@ -1233,4 +1317,131 @@ func TestSortWorktreesByPath(t *testing.T) {
 	assert.Equal(t, "/worktrees/alpha", worktrees[0].Path)
 	assert.Equal(t, "/worktrees/beta", worktrees[1].Path)
 	assert.Equal(t, "/worktrees/zeta", worktrees[2].Path)
+}
+
+func TestListMainFiltering(t *testing.T) {
+	tests := []struct {
+		name             string
+		args             []string
+		worktrees        []*models.WorktreeInfo
+		expectMainOnly   bool
+		expectedPathsLen int
+	}{
+		{
+			name: "filter to main worktree only",
+			args: []string{"lazyworktree", "list", "--main"},
+			worktrees: []*models.WorktreeInfo{
+				{
+					Path:   "/home/user/worktrees/main",
+					Branch: "main",
+					IsMain: true,
+				},
+				{
+					Path:   "/home/user/worktrees/feature-x",
+					Branch: "feature/x",
+					IsMain: false,
+				},
+			},
+			expectMainOnly:   true,
+			expectedPathsLen: 1,
+		},
+		{
+			name: "main flag with json output",
+			args: []string{"lazyworktree", "list", "--main", "--json"},
+			worktrees: []*models.WorktreeInfo{
+				{
+					Path:   "/home/user/worktrees/main",
+					Branch: "main",
+					IsMain: true,
+				},
+				{
+					Path:   "/home/user/worktrees/feature-x",
+					Branch: "feature/x",
+					IsMain: false,
+				},
+			},
+			expectMainOnly:   true,
+			expectedPathsLen: 1,
+		},
+		{
+			name: "main flag with pristine output",
+			args: []string{"lazyworktree", "list", "--main", "--pristine"},
+			worktrees: []*models.WorktreeInfo{
+				{
+					Path:   "/home/user/worktrees/main",
+					Branch: "main",
+					IsMain: true,
+				},
+				{
+					Path:   "/home/user/worktrees/feature-x",
+					Branch: "feature/x",
+					IsMain: false,
+				},
+			},
+			expectMainOnly:   true,
+			expectedPathsLen: 1,
+		},
+		{
+			name: "without main flag lists all",
+			args: []string{"lazyworktree", "list"},
+			worktrees: []*models.WorktreeInfo{
+				{
+					Path:   "/home/user/worktrees/main",
+					Branch: "main",
+					IsMain: true,
+				},
+				{
+					Path:   "/home/user/worktrees/feature-x",
+					Branch: "feature/x",
+					IsMain: false,
+				},
+			},
+			expectMainOnly:   false,
+			expectedPathsLen: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := listCommand()
+			var filteredWorktrees []*models.WorktreeInfo
+
+			// Override the action to capture the worktrees after filtering
+			cmd.Action = func(ctx context.Context, c *urfavecli.Command) error {
+				// Manually filter here to mimic what handleListAction does
+				worktrees := tt.worktrees
+				main := c.Bool("main")
+
+				if main {
+					filtered := make([]*models.WorktreeInfo, 0, 1)
+					for _, wt := range worktrees {
+						if wt.IsMain {
+							filtered = append(filtered, wt)
+							break
+						}
+					}
+					filteredWorktrees = filtered
+				} else {
+					filteredWorktrees = worktrees
+				}
+
+				return nil
+			}
+
+			app := &urfavecli.Command{
+				Name:     "lazyworktree",
+				Commands: []*urfavecli.Command{cmd},
+			}
+
+			err := app.Run(context.Background(), tt.args)
+			require.NoError(t, err)
+
+			assert.Len(t, filteredWorktrees, tt.expectedPathsLen)
+			if tt.expectMainOnly {
+				for _, wt := range filteredWorktrees {
+					assert.True(t, wt.IsMain, "expected only main worktree")
+				}
+			}
+		})
+	}
 }

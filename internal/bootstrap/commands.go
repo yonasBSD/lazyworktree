@@ -696,6 +696,11 @@ func listCommand() *appiCli.Command {
 		ShellComplete: subcommandShellComplete,
 		Flags: []appiCli.Flag{
 			&appiCli.BoolFlag{
+				Name:    "main",
+				Aliases: []string{"m"},
+				Usage:   "Show only the main branch worktree",
+			},
+			&appiCli.BoolFlag{
 				Name:    "pristine",
 				Aliases: []string{"p"},
 				Usage:   "Output paths only (one per line, suitable for scripting)",
@@ -762,11 +767,24 @@ func handleListAction(ctx context.Context, cmd *appiCli.Command) error {
 
 	sortWorktreesByPath(worktrees)
 
+	main := cmd.Bool("main")
 	pristine := cmd.Bool("pristine")
 	jsonOutput := cmd.Bool("json")
 
+	// Filter to main worktree if --main flag is set
+	if main {
+		filtered := make([]*models.WorktreeInfo, 0, 1)
+		for _, wt := range worktrees {
+			if wt.IsMain {
+				filtered = append(filtered, wt)
+				break
+			}
+		}
+		worktrees = filtered
+	}
+
 	if jsonOutput {
-		return outputListJSON(worktrees)
+		return outputListJSON(worktrees, main)
 	}
 
 	if pristine {
@@ -782,7 +800,32 @@ func handleListAction(ctx context.Context, cmd *appiCli.Command) error {
 }
 
 // outputListJSON outputs worktrees as JSON.
-func outputListJSON(worktrees []*models.WorktreeInfo) error {
+func outputListJSON(worktrees []*models.WorktreeInfo, mainOnly bool) error {
+	// If --main flag is set and we have exactly one worktree, output just the object
+	if mainOnly && len(worktrees) == 1 {
+		wt := worktrees[0]
+		name := filepath.Base(wt.Path)
+		output := worktreeJSON{
+			Path:       wt.Path,
+			Name:       name,
+			Branch:     wt.Branch,
+			IsMain:     wt.IsMain,
+			Dirty:      wt.Dirty,
+			Ahead:      wt.Ahead,
+			Behind:     wt.Behind,
+			Unpushed:   wt.Unpushed,
+			LastActive: wt.LastActive,
+		}
+
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(output); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// Otherwise output as array
 	output := make([]worktreeJSON, 0, len(worktrees))
 	for _, wt := range worktrees {
 		name := filepath.Base(wt.Path)

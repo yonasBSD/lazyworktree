@@ -26,6 +26,7 @@ Run `make docs-sync` after changing flag definitions.
 | Flag | Type | Usage |
 | --- | --- | --- |
 | `--json` | `bool` | Output as JSON |
+| `--main`, `-m` | `bool` | Show only the main branch worktree |
 | `--pristine`, `-p` | `bool` | Output paths only (one per line, suitable for scripting) |
 
 ### `create`
