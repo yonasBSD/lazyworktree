@@ -9,7 +9,7 @@
 1. Install lazyworktree using one of the methods in [Installation](installation.md).
 2. Move to any Git repository in your terminal.
 3. Run `lazyworktree`.
-4. Press `?` to open the interactive help screen.
+4. Press `?` to open the interactive help screen, or Ctrl-P to open the VS Code–style action palette.
 
 ![LazyWorktree main interface](assets/screenshot-main.png)
 
