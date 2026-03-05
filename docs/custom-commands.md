@@ -1,6 +1,6 @@
 # Custom Commands
 
-Custom commands let you bind shell commands, tmux sessions, zellij sessions, OCI container execution, or output views to keys. Commands can appear in help/footer and in the command palette.
+Custom commands let you bind shell commands, tmux sessions, zellij sessions, OCI container execution, or output views to keys. Commands can appear in help/footer and in the command palette. Prefix a command key with `_` to make it command-palette only.
 
 <div class="lw-callout">
   <p><strong>Defaults:</strong> <code>t</code> opens tmux and <code>Z</code> opens zellij. Override either key with your own command definition.</p>
@@ -98,6 +98,15 @@ Custom commands let you bind shell commands, tmux sessions, zellij sessions, OCI
           interactive: true
     ```
 
+=== "Palette-only action"
+
+    ```yaml
+    custom_commands:
+      _review:
+        command: make review
+        description: Review current worktree
+    ```
+
 ## Complete Configuration Example
 
 ```yaml
@@ -142,6 +151,8 @@ custom_commands:
 ```
 
 Palette lists sessions matching `session_prefix` (default: `wt-`).
+
+Palette-only commands keep their `_name` identifier for configuration and CLI use, but they do not consume a direct TUI keybinding or appear in footer key hints.
 
 ## Field Reference
 
@@ -239,6 +250,7 @@ Available to commands and templates:
 - Single keys: `e`, `s`
 - Modifiers: `ctrl+e`, `alt+t`
 - Special keys: `enter`, `esc`, `tab`, `space`
+- Palette-only identifiers: `_review`, `_deploy`
 
 Example:
 

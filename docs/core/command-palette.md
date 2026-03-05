@@ -30,7 +30,9 @@ For icon picker usage guidance and examples, see [Worktree Operations](worktree-
 
 ## Custom Command Integration
 
-Custom commands defined in your `config.yaml` appear at the top of the palette for quick access. Each custom command shows its description and assigned keybinding (if any).
+Custom commands defined in your `config.yaml` appear at the top of the palette for quick access. Each custom command shows its description and assigned keybinding when one exists.
+
+If a custom command key starts with `_`, it is palette-only: it appears in the palette, but it is not bound to a direct TUI shortcut or shown in footer key hints.
 
 Session-oriented custom commands (tmux/zellij) also expose active sessions in the palette, letting you switch between sessions or create new ones.
 

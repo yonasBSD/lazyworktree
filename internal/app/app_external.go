@@ -314,10 +314,28 @@ func (m *Model) customCommandKeys() []string {
 	return keys
 }
 
-func (m *Model) customCommandLabel(cmd *config.CustomCommand, key string) string {
+func (m *Model) customBoundCommandKeys() []string {
+	keys := m.customCommandKeys()
+	if len(keys) == 0 {
+		return nil
+	}
+
+	bound := make([]string, 0, len(keys))
+	for _, key := range keys {
+		if config.CustomCommandHasKeyBinding(key) {
+			bound = append(bound, key)
+		}
+	}
+	return bound
+}
+
+func (m *Model) customCommandBaseLabel(cmd *config.CustomCommand, key string) string {
 	label := ""
 	if cmd != nil {
 		label = strings.TrimSpace(cmd.Description)
+		if label == "" && config.IsPaletteOnlyCommandKey(key) {
+			label = config.PaletteOnlyCommandName(key)
+		}
 		if label == "" {
 			label = strings.TrimSpace(cmd.Command)
 			if label == "" {
@@ -334,6 +352,14 @@ func (m *Model) customCommandLabel(cmd *config.CustomCommand, key string) string
 	}
 	if label == "" {
 		label = customCommandPlaceholder
+	}
+	return label
+}
+
+func (m *Model) customCommandLabel(cmd *config.CustomCommand, key string) string {
+	label := m.customCommandBaseLabel(cmd, key)
+	if config.IsPaletteOnlyCommandKey(key) {
+		return label
 	}
 	return fmt.Sprintf("%s (%s)", label, key)
 }

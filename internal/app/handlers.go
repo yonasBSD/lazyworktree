@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	appscreen "github.com/chmouel/lazyworktree/internal/app/screen"
 	"github.com/chmouel/lazyworktree/internal/app/state"
+	"github.com/chmouel/lazyworktree/internal/config"
 	"github.com/chmouel/lazyworktree/internal/models"
 )
 
@@ -83,7 +84,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Check for custom commands first - allows users to override built-in keys
-	if _, ok := m.config.CustomCommands[msg.String()]; ok {
+	if _, ok := m.config.CustomCommands[msg.String()]; ok && config.CustomCommandHasKeyBinding(msg.String()) {
 		return m, m.executeCustomCommand(msg.String())
 	}
 

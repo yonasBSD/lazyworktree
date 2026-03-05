@@ -10,6 +10,8 @@ workflow.
 Built with [BubbleTea](https://github.com/charmbracelet/bubbletea), it focuses
 on fast iteration, clear state visibility, and tight Git tooling integration
 including tmux/zellij sessions and OCI container execution (docker/podman).
+Custom commands can be bound to keys or exposed only in the command palette by
+prefixing the config key with `_`.
 
 ## Documentation
 

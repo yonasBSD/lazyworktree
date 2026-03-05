@@ -101,6 +101,7 @@ Execute a shell command or trigger a custom command key action:
 
     ```bash
     lazyworktree exec --key=t --workspace=my-feature  # Launch tmux session
+    lazyworktree exec --key=_review --workspace=my-feature  # Run palette-only action
     lazyworktree exec -k z -w my-feature              # Launch zellij session
 
     # Auto-detect worktree and trigger key action
@@ -113,6 +114,7 @@ Execute a shell command or trigger a custom command key action:
 - Uses `--workspace` (`-w`) to target a worktree by name or path.
 - Auto-detects worktree from current directory when `--workspace` is omitted.
 - Accepts either a positional shell command or `--key` to trigger a custom command.
+- Palette-only custom commands still use their `_name` identifier with `--key`.
 - Sets `WORKTREE_*` environment variables (same as custom commands in the TUI).
 - Supports shell, tmux, zellij, and show-output command types.
 - `new-tab` commands are not supported in CLI mode.

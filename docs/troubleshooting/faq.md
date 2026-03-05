@@ -50,10 +50,11 @@ Yes. Use `lazyworktree exec` with the `--key` flag:
 
 ```bash
 lazyworktree exec --key=e              # Run custom command bound to 'e'
+lazyworktree exec --key=_review        # Run a palette-only custom command
 lazyworktree exec --key=e --workspace  # Run in a specific workspace
 ```
 
-This executes the custom command as if you had pressed the key in the TUI, but without launching the interface.
+This executes the custom command without launching the interface. Palette-only commands still use their `_name` identifier with `--key`.
 
 ## Why does `new-tab` not work from CLI `exec`?
 

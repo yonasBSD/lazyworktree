@@ -223,7 +223,7 @@ Target worktree by name, path, or branch name. If not provided, lazyworktree aut
 .
 .TP
 .B \-\-key \fIKEY\fR, \-k \fIKEY\fR
-Custom command key to trigger (e.g., 't' for tmux, 'z' for zellij). Mutually exclusive with the positional command argument. The key must exist in your configuration's \fBcustom_commands\fR. Supports shell, tmux, zellij, and show-output command types. Note: new-tab commands are not supported in CLI mode.
+Custom command key to trigger (e.g., 't' for tmux, 'z' for zellij, or '_review' for a palette-only action). Mutually exclusive with the positional command argument. The key must exist in your configuration's \fBcustom_commands\fR. Supports shell, tmux, zellij, and show-output command types. Note: new-tab commands are not supported in CLI mode.
 .
 .PP
 .B Environment:
@@ -756,6 +756,8 @@ Open command palette showing all available commands (e.g. select theme).
 
 The palette exposes a "Create from current" entry which copies the branch you currently occupy. When uncommitted files exist, the prompt shows an "Include current file changes" checkbox; Tab/Shift+Tab focuses it and Space toggles it. When selected, the diff is passed to any configured `branch_name_script` for naming suggestions.
 
+Custom commands whose config key starts with \fB_\fR appear in the command palette only and do not bind a direct TUI shortcut.
+
 The command palette automatically lists all active tmux and zellij sessions starting with the configured session prefix (default: \fBwt-\fR) under separate "Active Tmux Sessions" and "Active Zellij Sessions" sections that appear after the Multiplexer section, allowing you to quickly switch to existing sessions without manually typing session names. The session prefix can be customised via the \fBsession_prefix\fR configuration option. Note that tmux does not permit colons (:) in session names, so any colons in the prefix will be automatically converted to hyphens (-).
 .
 .SS LazyGit
@@ -1188,7 +1190,7 @@ Same environment variables as init_commands.
 .
 .TP
 .B custom_commands
-Custom keybindings to run commands in the selected worktree. Commands execute interactively (TUI suspends, like lazygit) and appear in the command palette. Custom commands take precedence over built-in keys.
+Custom keybindings to run commands in the selected worktree. Commands execute interactively (TUI suspends, like lazygit) and appear in the command palette. Prefix a command key with \fB_\fR to make it command-palette only. Key-bound custom commands take precedence over built-in keys.
 .PP
 Each custom command supports the following fields:
 .RS
@@ -1212,7 +1214,7 @@ Each custom command supports the following fields:
 \fBcontainer\fR: Run inside an OCI container (object, optional). Specifying just an image uses its defaults. Can be combined with \fBtmux\fR or \fBzellij\fR to run each window/tab inside a container.
 .RE
 .PP
-Supported key formats: single keys (e, s, t), modifier combinations (ctrl+e, alt+t), special keys (enter, esc, tab, space).
+Supported key formats: single keys (e, s, t), modifier combinations (ctrl+e, alt+t), special keys (enter, esc, tab, space), and palette-only identifiers prefixed with \fB_\fR (for example \fB_review\fR).
 .PP
 Environment variables available in custom commands: WORKTREE_BRANCH, MAIN_WORKTREE_PATH, WORKTREE_PATH, WORKTREE_NAME, REPO_NAME.
 .PP
@@ -1373,7 +1375,7 @@ init_commands:
 
 # Custom commands
 custom_commands:
-  - key: t
+  t:
     description: "Open tmux session"
     show_help: true
     tmux:
@@ -1385,6 +1387,9 @@ custom_commands:
           command: "nvim"
         - name: "shell"
           command: ""
+  _review:
+    command: "make review"
+    description: "Review current worktree"
 .fi
 .RE
 .

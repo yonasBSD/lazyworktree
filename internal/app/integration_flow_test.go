@@ -202,6 +202,62 @@ func TestIntegrationPaletteSelectsCustomCommand(t *testing.T) {
 	}
 }
 
+func TestIntegrationPaletteSelectsPaletteOnlyCustomCommand(t *testing.T) {
+	const (
+		customKey     = "_review"
+		customCommand = "echo run"
+	)
+
+	cfg := &config.AppConfig{
+		WorktreeDir: t.TempDir(),
+		CustomCommands: map[string]*config.CustomCommand{
+			customKey: {
+				Command: customCommand,
+			},
+		},
+	}
+
+	m := NewModel(cfg, "")
+	m.state.data.filteredWts = []*models.WorktreeInfo{{Path: cfg.WorktreeDir + "/wt", Branch: "feat"}}
+	m.state.data.selectedIndex = 0
+
+	recorder := &commandRecorder{}
+	m.commandRunner = recorder.runner
+	m.execProcess = recorder.exec
+
+	_ = m.showCommandPalette()
+
+	for _, r := range "review" {
+		_, _ = m.handleScreenKey(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+
+	if !m.state.ui.screenManager.IsActive() || m.state.ui.screenManager.Type() != appscreen.TypePalette {
+		t.Fatal("expected palette screen to be active")
+	}
+
+	paletteScreen := m.state.ui.screenManager.Current().(*appscreen.CommandPaletteScreen)
+	customIndex := -1
+	for i, item := range paletteScreen.Filtered {
+		if item.ID == customKey {
+			customIndex = i
+			break
+		}
+	}
+	if customIndex < 0 {
+		t.Fatal("expected palette-only custom command in filtered results")
+	}
+	paletteScreen.Cursor = customIndex
+
+	_, cmd := m.handleScreenKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd != nil {
+		_ = cmd()
+	}
+
+	if !containsCommand(recorder.execs, "bash") {
+		t.Fatalf("expected bash command to be executed, got %+v", recorder.execs)
+	}
+}
+
 func TestIntegrationPRAndCIFlowUpdatesView(t *testing.T) {
 	// Set default provider for testing
 	SetIconProvider(&NerdFontV3Provider{})

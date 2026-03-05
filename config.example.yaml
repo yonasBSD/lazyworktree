@@ -358,6 +358,11 @@ terminate_commands:
 #   #     image: "ghcr.io/anthropics/claude-code:latest"
 #   #     entrypoint: "/bin/bash"
 #   #     interactive: true
+#   #
+#   # Prefix a key with "_" to make it command-palette only (no direct keybinding)
+#   # _review:
+#   #   command: "make review"
+#   #   description: "Review current worktree"
 custom_commands:
   s:
     command: zsh
@@ -406,6 +411,9 @@ custom_commands:
           command: zsh
         - name: lazygit
           command: lazygit
+  _review:
+    command: "make review"
+    description: "Review current worktree"
 
 # ============================================================================
 # CUSTOM MENUS

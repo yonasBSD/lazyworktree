@@ -203,6 +203,44 @@ func TestShowCommandPaletteIncludesCustomCommands(t *testing.T) {
 	}
 }
 
+func TestShowCommandPaletteIncludesPaletteOnlyCustomCommands(t *testing.T) {
+	cfg := &config.AppConfig{
+		WorktreeDir: t.TempDir(),
+		CustomCommands: map[string]*config.CustomCommand{
+			"_review": {
+				Command:  "make review",
+				ShowHelp: true,
+			},
+		},
+	}
+	m := NewModel(cfg, "")
+	m.setWindowSize(120, 40)
+
+	cmd := m.showCommandPalette()
+	if cmd == nil {
+		t.Fatal("showCommandPalette returned nil command")
+	}
+	if !m.state.ui.screenManager.IsActive() || m.state.ui.screenManager.Type() != appscreen.TypePalette {
+		t.Fatal("expected command palette screen")
+	}
+
+	paletteScreen := m.state.ui.screenManager.Current().(*appscreen.CommandPaletteScreen)
+	for _, item := range paletteScreen.Items {
+		if item.ID != "_review" {
+			continue
+		}
+		if item.Label != "review" {
+			t.Fatalf("expected label %q, got %q", "review", item.Label)
+		}
+		if item.Description != "make review" {
+			t.Fatalf("expected description %q, got %q", "make review", item.Description)
+		}
+		return
+	}
+
+	t.Fatal("palette-only custom command item not found in command palette")
+}
+
 func TestShowCommandPaletteIncludesTmuxCommands(t *testing.T) {
 	// Skip this test if tmux is not available
 	if _, err := exec.LookPath("tmux"); err != nil {
@@ -406,6 +444,29 @@ func TestRenderFooterIncludesCustomHelpHints(t *testing.T) {
 
 	if !strings.Contains(footer, "Run tests") {
 		t.Fatalf("expected footer to include custom command label, got %q", footer)
+	}
+}
+
+func TestRenderFooterSkipsPaletteOnlyCustomHelpHints(t *testing.T) {
+	cfg := &config.AppConfig{
+		WorktreeDir: t.TempDir(),
+		CustomCommands: map[string]*config.CustomCommand{
+			"_review": {
+				Command:     "make review",
+				Description: "Review",
+				ShowHelp:    true,
+			},
+		},
+	}
+	m := NewModel(cfg, "")
+	m.state.view.WindowWidth = 200
+	m.state.view.WindowHeight = 50
+	layout := m.computeLayout()
+	m.ensureRenderStyles()
+	footer := m.renderFooter(layout)
+
+	if strings.Contains(footer, "Review") {
+		t.Fatalf("expected footer to omit palette-only custom command label, got %q", footer)
 	}
 }
 

@@ -28,6 +28,30 @@ type CustomCommand struct {
 	Container   *ContainerCommand
 }
 
+const paletteOnlyCommandPrefix = "_"
+
+// IsPaletteOnlyCommandKey reports whether a custom command is palette-only.
+// Keys prefixed with "_" remain available in the command palette, but they are
+// not bound to a direct keyboard shortcut in the main TUI.
+func IsPaletteOnlyCommandKey(key string) bool {
+	return strings.HasPrefix(key, paletteOnlyCommandPrefix)
+}
+
+// PaletteOnlyCommandName returns the palette-visible identifier without the
+// leading "_" marker.
+func PaletteOnlyCommandName(key string) string {
+	if !IsPaletteOnlyCommandKey(key) {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(key, paletteOnlyCommandPrefix))
+}
+
+// CustomCommandHasKeyBinding reports whether the key should be matched against
+// direct keyboard input.
+func CustomCommandHasKeyBinding(key string) bool {
+	return !IsPaletteOnlyCommandKey(key)
+}
+
 // TmuxCommand represents a configured tmux session layout.
 type TmuxCommand struct {
 	SessionName string

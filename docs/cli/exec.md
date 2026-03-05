@@ -19,6 +19,7 @@ lazyworktree exec "npm run build"
 
 ```bash
 lazyworktree exec --key=t --workspace=my-feature
+lazyworktree exec --key=_review --workspace=my-feature
 lazyworktree exec -k z -w my-feature
 
 # Auto-detect and trigger
@@ -31,6 +32,7 @@ lazyworktree exec --key=t
 - `--workspace` (`-w`) accepts worktree name or path.
 - Without `--workspace`, lazyworktree auto-detects from current directory.
 - Accepts either positional shell command or `--key` custom action.
+- Palette-only custom commands still use their `_name` identifier with `--key`.
 - Exposes `WORKTREE_*` environment variables.
 - Supports shell, tmux, zellij, and show-output command types.
 - `new-tab` commands are not supported in CLI mode.

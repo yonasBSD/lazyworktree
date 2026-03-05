@@ -1857,6 +1857,17 @@ func TestParseConfig_CustomCommands(t *testing.T) {
 	}
 }
 
+func TestCustomCommandKeyHelpers(t *testing.T) {
+	t.Parallel()
+
+	assert.True(t, IsPaletteOnlyCommandKey("_review"))
+	assert.False(t, IsPaletteOnlyCommandKey("r"))
+	assert.Equal(t, "review", PaletteOnlyCommandName("_review"))
+	assert.Empty(t, PaletteOnlyCommandName("r"))
+	assert.False(t, CustomCommandHasKeyBinding("_review"))
+	assert.True(t, CustomCommandHasKeyBinding("r"))
+}
+
 func TestParseConfigPager(t *testing.T) {
 	input := map[string]interface{}{
 		"pager": "less -R",

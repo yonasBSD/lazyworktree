@@ -475,7 +475,7 @@ func (m *Model) showRunCommand() tea.Cmd {
 }
 
 func (m *Model) customFooterHints() []string {
-	keys := m.customCommandKeys()
+	keys := m.customBoundCommandKeys()
 	if len(keys) == 0 {
 		return nil
 	}

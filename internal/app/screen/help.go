@@ -154,6 +154,7 @@ Supported: Letters (a-z, A-Z), numbers (0-9), and hyphens (-). See help for full
 - y: Copy to clipboard (context-aware: path in worktrees pane, file path in status pane, SHA in log pane; uses OSC52, works over SSH)
 - Y: Copy selected worktree branch name to clipboard
 - : / Ctrl+P: Command Palette
+- Custom commands prefixed with _: appear in the command palette only
 - ?: Show this help
 
 **{{HELP_REPO_OPS}}Repository Operations**
@@ -256,9 +257,10 @@ Search Mode:
 	if len(customCommands) > 0 {
 		var customKeys []string
 		for key, cmd := range customCommands {
-			if cmd != nil && cmd.ShowHelp {
-				customKeys = append(customKeys, fmt.Sprintf("- %s: %s", key, cmd.Description))
+			if cmd == nil || !cmd.ShowHelp {
+				continue
 			}
+			customKeys = append(customKeys, helpCustomCommandEntry(key, cmd))
 		}
 
 		if len(customKeys) > 0 {
@@ -293,6 +295,29 @@ Search Mode:
 
 	hs.refreshContent()
 	return hs
+}
+
+func helpCustomCommandEntry(key string, cmd *config.CustomCommand) string {
+	label := strings.TrimSpace(cmd.Description)
+	if label == "" && config.IsPaletteOnlyCommandKey(key) {
+		label = config.PaletteOnlyCommandName(key)
+	}
+	if label == "" {
+		label = "Custom command"
+	}
+
+	if config.IsPaletteOnlyCommandKey(key) {
+		name := config.PaletteOnlyCommandName(key)
+		if name == "" {
+			name = label
+		}
+		if name == label {
+			return fmt.Sprintf("- %s (command palette only)", label)
+		}
+		return fmt.Sprintf("- %s: %s (command palette only)", name, label)
+	}
+
+	return fmt.Sprintf("- %s: %s", key, label)
 }
 
 // Type returns TypeHelp to identify this screen.
