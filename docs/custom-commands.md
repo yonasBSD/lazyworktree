@@ -207,7 +207,7 @@ For a step-by-step walkthrough with examples, see the [Container Execution guide
 | `env` | map | `{}` | Extra environment variables for the container |
 | `working_dir` | string | `/workspace` | Working directory inside the container |
 | `extra_args` | list | `[]` | Additional docker/podman run arguments |
-| `entrypoint` | string | `""` | Override the image's default entrypoint |
+| `args` | list | `[]` | Arguments passed after the image (as CMD) |
 | `interactive` | bool | `false` | Allocate TTY for interactive use (`-it` flags) |
 
 Each mount entry has:

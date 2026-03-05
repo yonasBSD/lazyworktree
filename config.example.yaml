@@ -324,8 +324,8 @@ terminate_commands:
 #   env: Extra environment variables (optional)
 #   working_dir: Working directory inside container (default: /workspace)
 #   extra_args: Additional docker/podman run arguments (optional)
-#   entrypoint: Override the image's default entrypoint (optional)
-#   interactive: Allocate TTY for interactive use (default: false). Command is optional when entrypoint is set.
+#   args: Arguments passed after the image as CMD (optional)
+#   interactive: Allocate TTY for interactive use (default: false).
 #
 # Container examples:
 #
