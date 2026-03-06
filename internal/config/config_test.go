@@ -2452,6 +2452,22 @@ func TestParseContainerCommandMountReadOnly(t *testing.T) {
 	assert.False(t, got.Mounts[1].ReadOnly)
 }
 
+func TestParseContainerCommandMountOptions(t *testing.T) {
+	t.Parallel()
+	input := map[string]any{
+		"image": "alpine",
+		"mounts": []any{
+			map[string]any{"source": "/tmp/data", "target": "/data", "options": "z"},
+			map[string]any{"source": "/tmp/cache", "target": "/cache"},
+		},
+	}
+	got := parseContainerCommand(input)
+	require.NotNil(t, got)
+	require.Len(t, got.Mounts, 2)
+	assert.Equal(t, "z", got.Mounts[0].Options)
+	assert.Empty(t, got.Mounts[1].Options)
+}
+
 func TestParseContainerCommandArgsAndInteractive(t *testing.T) {
 	t.Parallel()
 	input := map[string]any{

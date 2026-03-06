@@ -76,8 +76,15 @@ func BuildContainerCommand(cfg *config.ContainerCommand, command, worktreePath s
 			return "", fmt.Errorf("expanding mount source %q: %w", m.Source, err)
 		}
 		mountStr := source + ":" + m.Target
+		var opts []string
 		if m.ReadOnly {
-			mountStr += ":ro"
+			opts = append(opts, "ro")
+		}
+		if m.Options != "" {
+			opts = append(opts, m.Options)
+		}
+		if len(opts) > 0 {
+			mountStr += ":" + strings.Join(opts, ",")
 		}
 		args = append(args, "-v", mountStr)
 	}

@@ -336,6 +336,7 @@ terminate_commands:
 #     - source: Host path
 #       target: Container path
 #       read_only: true/false (default: false)
+#       options: Comma-separated volume options (e.g. "z" for SELinux relabeling)
 #   env: Extra environment variables (optional)
 #   working_dir: Working directory inside container (default: /workspace)
 #   extra_args: Additional docker/podman run arguments (optional)
@@ -380,6 +381,7 @@ terminate_commands:
 #   #     mounts:
 #   #       - source: "~/.claude"
 #   #         target: "/claude"
+#   #         options: "z"   # SELinux: relabel for shared container access
 #   #     extra_args:
 #   #       - "--user=1000:1000"
 #   #

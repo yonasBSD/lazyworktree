@@ -183,6 +183,32 @@ func TestBuildContainerCommand(t *testing.T) {
 			wantContains: []string{os.Getenv("HOME") + "/.claude:/config"},
 		},
 		{
+			name: "mount with options only",
+			cfg: &config.ContainerCommand{
+				Image: "alpine", Runtime: "echo",
+				Mounts: []config.ContainerMount{
+					{Source: "/tmp/data", Target: "/data", Options: "z"},
+				},
+			},
+			command:      "ls",
+			worktreePath: "/wt",
+			env:          map[string]string{},
+			wantContains: []string{"/tmp/data:/data:z"},
+		},
+		{
+			name: "mount with read_only and options",
+			cfg: &config.ContainerCommand{
+				Image: "alpine", Runtime: "echo",
+				Mounts: []config.ContainerMount{
+					{Source: "/tmp/data", Target: "/data", ReadOnly: true, Options: "z"},
+				},
+			},
+			command:      "ls",
+			worktreePath: "/wt",
+			env:          map[string]string{},
+			wantContains: []string{"/tmp/data:/data:ro,z"},
+		},
+		{
 			name:         "missing runtime binary errors",
 			cfg:          &config.ContainerCommand{Image: "alpine", Runtime: "nonexistent-binary-xyz"},
 			command:      "ls",

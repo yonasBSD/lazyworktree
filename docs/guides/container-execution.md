@@ -187,7 +187,19 @@ custom_commands:
         - source: ~/go/pkg/mod
           target: /root/go/pkg/mod
           read_only: true
+        - source: "~/.local/share/worktrees/.claude"
+          target: "/claude"
+          options: "z"   # SELinux: relabel for shared container access
 ```
+
+Each mount supports:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `source` | string | Host path (supports `~` and env var expansion) |
+| `target` | string | Container path |
+| `read_only` | bool | Mount as read-only (default: `false`) |
+| `options` | string | Comma-separated Docker/Podman volume options (e.g. `z` for SELinux shared relabeling, `Z` for private relabeling) |
 
 ### Environment Variables
 

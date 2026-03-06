@@ -78,6 +78,7 @@ type ContainerMount struct {
 	Source   string // Host path (supports env var expansion)
 	Target   string // Container path
 	ReadOnly bool   // Mount as read-only
+	Options  string // Extra mount options (e.g. "z", "Z", "shared")
 }
 
 // ContainerCommand configures OCI container execution for a custom command.
@@ -576,6 +577,7 @@ func parseContainerCommand(data map[string]any) *ContainerCommand {
 					Source:   getString(mData, "source"),
 					Target:   getString(mData, "target"),
 					ReadOnly: coerceBool(mData["read_only"], false),
+					Options:  getString(mData, "options"),
 				})
 			}
 		}
