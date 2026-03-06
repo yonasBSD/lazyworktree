@@ -325,31 +325,15 @@ func (s *CommandPaletteScreen) View() string {
 		Padding(0, 1).
 		Width(width - 2)
 
-	// Selected item with accent border and subtle background tint
+	// Selected item with prominent highlight background
 	selectedStyle := lipgloss.NewStyle().
 		Padding(0, 1).
-		Width(width - 4). // Narrower to accommodate left border
-		Foreground(s.Thm.TextFg).
-		Background(s.Thm.AccentDim).
-		Bold(true)
-
-	// Left accent border for selected item
-	selectedBorderStyle := lipgloss.NewStyle().
-		Foreground(s.Thm.Accent).
-		Background(s.Thm.AccentDim).
-		Bold(true)
-
-	// Shortcut badge style
-	shortcutStyle := lipgloss.NewStyle().
+		Width(width - 2).
 		Foreground(s.Thm.AccentFg).
 		Background(s.Thm.Accent).
-		Bold(true).
-		Padding(0, 1)
+		Bold(true)
 
 	descStyle := lipgloss.NewStyle().
-		Foreground(s.Thm.MutedFg)
-
-	selectedDescStyle := lipgloss.NewStyle().
 		Foreground(s.Thm.MutedFg)
 
 	noResultsStyle := lipgloss.NewStyle().
@@ -361,10 +345,6 @@ func (s *CommandPaletteScreen) View() string {
 	// Icon style
 	iconStyle := lipgloss.NewStyle().
 		Foreground(s.Thm.MutedFg)
-
-	selectedIconStyle := lipgloss.NewStyle().
-		Foreground(s.Thm.Accent).
-		Bold(true)
 
 	// Get current query for highlighting
 	query := strings.TrimSpace(s.FilterInput.Value())
@@ -384,8 +364,7 @@ func (s *CommandPaletteScreen) View() string {
 	// Calculate available width for label and description
 	// Width breakdown: 2 padding + 2 icon + 1 space + label + desc + shortcut
 	labelWidth := 28
-	shortcutWidth := 6                                  // space for shortcut badge
-	descWidth := width - labelWidth - shortcutWidth - 8 // Leave room for icon, padding, and UI elements
+	descWidth := width - labelWidth - 8 // Leave room for icon, padding, and UI elements
 
 	for i := start; i < end; i++ {
 		it := s.Filtered[i]
@@ -424,23 +403,11 @@ func (s *CommandPaletteScreen) View() string {
 		paddedLabel := fmt.Sprintf("%-*s", labelWidth, label)
 		paddedDesc := fmt.Sprintf("%-*s", descWidth, desc)
 
-		// Render shortcut badge if available
-		shortcutBadge := ""
-		if it.Shortcut != "" {
-			shortcutBadge = " " + shortcutStyle.Render(it.Shortcut)
-		}
-
 		if i == s.Cursor {
-			// Selected item with left accent border and background tint
-			styledIcon := selectedIconStyle.Render(icon)
-			styledLabel := paddedLabel
-			styledDesc := selectedDescStyle.Render(paddedDesc)
+			// Selected item with prominent highlight
+			line := icon + " " + paddedLabel + " " + paddedDesc
 
-			line := styledIcon + " " + styledLabel + " " + styledDesc + shortcutBadge
-
-			border := selectedBorderStyle.Render("▎")
-			itemContent := selectedStyle.Render(line)
-			itemViews = append(itemViews, border+itemContent)
+			itemViews = append(itemViews, selectedStyle.Render(line))
 		} else {
 			// Normal item
 			styledIcon := iconStyle.Render(icon)
@@ -453,10 +420,9 @@ func (s *CommandPaletteScreen) View() string {
 
 			styledDesc := descStyle.Render(paddedDesc)
 
-			line := styledIcon + " " + styledLabel + " " + styledDesc + shortcutBadge
+			line := styledIcon + " " + styledLabel + " " + styledDesc
 
-			// Add space to align with selected item border
-			itemViews = append(itemViews, itemStyle.Render(" "+line))
+			itemViews = append(itemViews, itemStyle.Render(line))
 		}
 	}
 

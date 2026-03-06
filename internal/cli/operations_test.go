@@ -1138,6 +1138,16 @@ func TestResolveNoteContext(t *testing.T) {
 		wtPath := filepath.Join(tmpDir, "my-feature")
 		require.NoError(t, os.MkdirAll(wtPath, 0o750))
 
+		// Resolve symlinks to match os.Getwd() behaviour
+		wtPath, err := filepath.EvalSymlinks(wtPath)
+		require.NoError(t, err)
+		tmpDir, err = filepath.EvalSymlinks(tmpDir)
+		require.NoError(t, err)
+
+		// Create the directory for worktree notes
+		notesDir := filepath.Join(tmpDir, testRepoName)
+		require.NoError(t, os.MkdirAll(notesDir, 0o750))
+
 		cfg := &config.AppConfig{
 			WorktreeDir: tmpDir,
 		}
