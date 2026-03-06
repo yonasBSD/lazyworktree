@@ -89,3 +89,5 @@ This creates a single JSON file in your repository with all worktree notes. Comm
 
 !!! tip
     When `worktree_notes_path` is set, keys are stored relative to `worktree_dir` instead of absolute paths, making them portable across different systems.
+
+Alternatively, use `worktree_note_type: splitted` to store each note as an individual markdown file. See [worktree notes](../worktree-notes.md#splitted-mode) for details.

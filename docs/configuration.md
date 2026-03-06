@@ -57,6 +57,10 @@ branch_name_script: "" # Script to generate names from diff/issue/PR content
 worktree_note_script: "" # Script to generate notes from PR/issue title+body
 # Optional shared note storage file (single JSON for all repositories)
 worktree_notes_path: "" # e.g. ~/.local/share/lazyworktree/worktree-notes.json
+# Note storage type: "onejson" (default) or "splitted" (individual markdown files)
+# When "splitted", worktree_notes_path is a template with $REPO_OWNER, $REPO_REPONAME, $WORKTREE_NAME
+# e.g. worktree_notes_path: ~/notes/$REPO_OWNER/$REPO_REPONAME/$WORKTREE_NAME/note.md
+worktree_note_type: "" # "onejson" or "splitted"
 init_commands:
   - link_topsymlinks
 terminate_commands:
@@ -166,6 +170,7 @@ CI environment variables: `LW_CI_JOB_NAME`, `LW_CI_JOB_NAME_CLEAN`, `LW_CI_RUN_I
 
 - `init_commands`, `terminate_commands`: run before repository `.wt` commands.
 - `worktree_notes_path`: optional path to store all worktree notes in one shared JSON file. In this mode, note keys are repo/worktree-relative (not absolute paths), making cross-system sync easier.
+- `worktree_note_type`: set to `splitted` to store each worktree note as an individual markdown file with YAML frontmatter. In this mode, `worktree_notes_path` is a template with `$REPO_OWNER`, `$REPO_REPONAME`, and `$WORKTREE_NAME` variables.
 
 ### Sync and multiplexers
 

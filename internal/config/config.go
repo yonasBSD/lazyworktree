@@ -15,6 +15,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Note type constants for WorktreeNoteType configuration.
+const (
+	NoteTypeSplitted = "splitted"
+	NoteTypeOneJSON  = "onejson"
+)
+
 // CustomCommand represents a user-defined command binding.
 type CustomCommand struct {
 	Command     string
@@ -153,6 +159,7 @@ type AppConfig struct {
 	BranchNameScript        string // Script to generate branch name suggestions from diff
 	WorktreeNoteScript      string // Script to generate worktree notes from PR/issue content
 	WorktreeNotesPath       string // Optional path to a single shared JSON file for worktree notes
+	WorktreeNoteType        string // Note storage type: "onejson" (default) or "splitted"
 	Theme                   string // Theme name: see AvailableThemes in internal/theme
 	MergeMethod             string // Merge method for absorb: "rebase" or "merge" (default: "rebase")
 	FuzzyFinderInput        bool   // Enable fuzzy finder for input suggestions (default: false)
@@ -377,12 +384,30 @@ func parseConfig(data map[string]any) (*AppConfig, error) {
 			cfg.WorktreeNoteScript = worktreeNoteScript
 		}
 	}
+	if noteType, ok := data["worktree_note_type"].(string); ok {
+		noteType = strings.TrimSpace(noteType)
+		if noteType != "" && noteType != NoteTypeOneJSON && noteType != NoteTypeSplitted {
+			return nil, fmt.Errorf("invalid worktree_note_type %q: must be %q or %q", noteType, NoteTypeOneJSON, NoteTypeSplitted)
+		}
+		cfg.WorktreeNoteType = noteType
+	}
 	if worktreeNotesPath, ok := data["worktree_notes_path"].(string); ok {
 		worktreeNotesPath = strings.TrimSpace(worktreeNotesPath)
 		if worktreeNotesPath != "" {
-			expanded, err := utils.ExpandPath(worktreeNotesPath)
-			if err == nil {
-				cfg.WorktreeNotesPath = expanded
+			if cfg.WorktreeNoteType == NoteTypeSplitted {
+				// Splitted mode: path contains template variables, only expand ~
+				if strings.HasPrefix(worktreeNotesPath, "~/") {
+					home, herr := os.UserHomeDir()
+					if herr == nil {
+						worktreeNotesPath = filepath.Join(home, worktreeNotesPath[2:])
+					}
+				}
+				cfg.WorktreeNotesPath = worktreeNotesPath
+			} else {
+				expanded, err := utils.ExpandPath(worktreeNotesPath)
+				if err == nil {
+					cfg.WorktreeNotesPath = expanded
+				}
 			}
 		}
 	}
@@ -976,6 +1001,9 @@ func (cfg *AppConfig) ApplyCLIOverrides(overrides []string) error {
 	}
 	if overrideCfg.WorktreeNoteScript != "" {
 		cfg.WorktreeNoteScript = overrideCfg.WorktreeNoteScript
+	}
+	if overrideCfg.WorktreeNoteType != "" {
+		cfg.WorktreeNoteType = overrideCfg.WorktreeNoteType
 	}
 	if overrideCfg.WorktreeNotesPath != "" {
 		cfg.WorktreeNotesPath = overrideCfg.WorktreeNotesPath

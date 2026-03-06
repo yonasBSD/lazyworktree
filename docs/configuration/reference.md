@@ -47,6 +47,7 @@ This page is generated from `internal/config/config.go`. Run `make docs-sync` af
 | `custom_themes` | `map[string]object` | `none` | Custom theme definitions. |
 | `debug_log` | `string` | `none` | Debug log file path. |
 | `layout_sizes` | `string` | `none` | See config.example.yaml for usage details. |
+| `worktree_note_type` | `string` | `none` | See config.example.yaml for usage details. |
 <!-- END GENERATED:config-reference -->
 
 For examples and grouped explanations, see:

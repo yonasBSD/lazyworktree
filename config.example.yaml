@@ -222,6 +222,21 @@ pr_branch_name_template: "pr-{number}-{title}"
 #
 # worktree_notes_path: ""
 
+# Note storage type: "onejson" (default) or "splitted"
+# When "splitted", each worktree note is stored as an individual markdown file
+# with YAML frontmatter (icon, timestamp) and a markdown body.
+# In this mode, worktree_notes_path is a path template with variables:
+#   $REPO_OWNER     - repository owner (e.g. "myorg")
+#   $REPO_REPONAME  - repository name (e.g. "myrepo")
+#   $WORKTREE_NAME  - worktree directory basename
+#   $REPO_NAME      - $REPOW_OWNER/$REPO_REPONAME
+#
+# Example:
+#   worktree_note_type: splitted
+#   worktree_notes_path: ~/notes/$REPO_NAME/$WORKTREE_NAME.md
+#
+# worktree_note_type: ""
+
 # ============================================================================
 # GIT OPERATIONS
 # ============================================================================

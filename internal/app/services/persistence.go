@@ -7,11 +7,17 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/chmouel/lazyworktree/internal/config"
 	"github.com/chmouel/lazyworktree/internal/models"
 	"github.com/chmouel/lazyworktree/internal/utils"
 )
 
-const defaultFilePerms = 0o600
+const (
+	defaultFilePerms = 0o600
+	// worktreeNameSentinel is a unique placeholder used when computing
+	// prefix/suffix from a path template by expanding WORKTREE_NAME.
+	worktreeNameSentinel = "\x00SENTINEL\x00"
+)
 
 // CommandPaletteUsage tracks usage frequency and recency for command palette items.
 type CommandPaletteUsage struct {
@@ -302,8 +308,25 @@ func MigrateRepoNotesToSharedFile(repoKey, worktreeDir, worktreeNotesPath string
 	return migrated, nil
 }
 
+// cloneEnvWith returns a copy of env with an additional key=val entry.
+func cloneEnvWith(env map[string]string, key, val string) map[string]string {
+	out := make(map[string]string, len(env)+1)
+	for k, v := range env {
+		out[k] = v
+	}
+	out[key] = val
+	return out
+}
+
 // LoadWorktreeNotes loads worktree notes from file.
-func LoadWorktreeNotes(repoKey, worktreeDir, worktreeNotesPath string) (map[string]models.WorktreeNote, error) {
+// When noteType is "splitted", notes are loaded from individual files matching
+// the pathTemplate with env variables expanded. For other types (including empty),
+// the existing onejson behaviour is used.
+func LoadWorktreeNotes(repoKey, worktreeDir, worktreeNotesPath, noteType string, env map[string]string) (map[string]models.WorktreeNote, error) {
+	if noteType == config.NoteTypeSplitted {
+		return loadSplittedWorktreeNotes(worktreeNotesPath, env)
+	}
+
 	if strings.TrimSpace(worktreeNotesPath) == "" {
 		return loadRepoWorktreeNotes(filepath.Join(worktreeDir, repoKey, models.WorktreeNotesFilename))
 	}
@@ -320,7 +343,13 @@ func LoadWorktreeNotes(repoKey, worktreeDir, worktreeNotesPath string) (map[stri
 }
 
 // SaveWorktreeNotes saves worktree notes to file.
-func SaveWorktreeNotes(repoKey, worktreeDir, worktreeNotesPath string, notes map[string]models.WorktreeNote) error {
+// When noteType is "splitted", notes are saved as individual files. For other
+// types (including empty), the existing onejson behaviour is used.
+func SaveWorktreeNotes(repoKey, worktreeDir, worktreeNotesPath, noteType string, notes map[string]models.WorktreeNote, env map[string]string) error {
+	if noteType == config.NoteTypeSplitted {
+		return saveSplittedWorktreeNotes(worktreeNotesPath, notes, env)
+	}
+
 	normalized := normalizeWorktreeNotes(notes)
 
 	if strings.TrimSpace(worktreeNotesPath) == "" {
@@ -444,6 +473,96 @@ func loadSharedWorktreeNotes(repoKey, worktreeNotesPath string) (map[string]map[
 		}
 		return nil, err
 	}
+}
+
+// loadSplittedWorktreeNotes discovers individual note files matching a path template.
+func loadSplittedWorktreeNotes(pathTemplate string, env map[string]string) (map[string]models.WorktreeNote, error) {
+	// Expand all variables, substituting WORKTREE_NAME with a glob wildcard.
+	pattern := ExpandWithEnv(pathTemplate, cloneEnvWith(env, "WORKTREE_NAME", "*"))
+
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	// Compute prefix/suffix once from the template — they don't depend on the matched path.
+	sentinelExpanded := ExpandWithEnv(pathTemplate, cloneEnvWith(env, "WORKTREE_NAME", worktreeNameSentinel))
+	sentinelParts := strings.SplitN(sentinelExpanded, worktreeNameSentinel, 2)
+	var prefix, suffix string
+	if len(sentinelParts) == 2 {
+		prefix, suffix = sentinelParts[0], sentinelParts[1]
+	}
+
+	notes := make(map[string]models.WorktreeNote, len(matches))
+	for _, match := range matches {
+		// Derive the worktree name from the precomputed prefix/suffix.
+		wtName := extractWorktreeNameFromParts(match, prefix, suffix)
+		if wtName == "" {
+			continue
+		}
+		// #nosec G304 -- match comes from filepath.Glob on user-configured template
+		data, rerr := os.ReadFile(match)
+		if rerr != nil {
+			continue
+		}
+		note, perr := ParseNoteFile(data)
+		if perr != nil {
+			continue
+		}
+		// Trim the note body for consistency with onejson normalisation.
+		note.Note = strings.TrimSpace(note.Note)
+		if note.Note == "" && note.Icon == "" {
+			continue
+		}
+		notes[wtName] = note
+	}
+	return notes, nil
+}
+
+// extractWorktreeNameFromParts extracts the worktree name from a matched path
+// given a precomputed prefix and suffix derived from the path template.
+func extractWorktreeNameFromParts(matched, prefix, suffix string) string {
+	if prefix == "" && suffix == "" {
+		return filepath.Base(filepath.Dir(matched))
+	}
+	if !strings.HasPrefix(matched, prefix) {
+		return ""
+	}
+	rest := matched[len(prefix):]
+	if suffix != "" && strings.HasSuffix(rest, suffix) {
+		rest = rest[:len(rest)-len(suffix)]
+	}
+	return rest
+}
+
+// saveSplittedWorktreeNotes saves individual note files for each worktree.
+func saveSplittedWorktreeNotes(pathTemplate string, notes map[string]models.WorktreeNote, env map[string]string) error {
+	normalized := normalizeWorktreeNotes(notes)
+
+	// Write each note as an individual file.
+	for wtName, note := range normalized {
+		notePath := ExpandWithEnv(pathTemplate, cloneEnvWith(env, "WORKTREE_NAME", wtName))
+
+		if err := os.MkdirAll(filepath.Dir(notePath), utils.DefaultDirPerms); err != nil {
+			return err
+		}
+		data := FormatNoteFile(note)
+		if err := os.WriteFile(notePath, data, defaultFilePerms); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// DeleteSplittedNoteFile removes the note file for a specific worktree.
+func DeleteSplittedNoteFile(pathTemplate, wtName string, env map[string]string) error {
+	notePath := ExpandWithEnv(pathTemplate, cloneEnvWith(env, "WORKTREE_NAME", wtName))
+
+	if err := os.Remove(notePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 func relativePathWithin(base, target string) (string, bool) {

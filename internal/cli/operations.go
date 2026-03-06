@@ -757,7 +757,7 @@ func maybeCreateAutoWorktreeNote(
 	if strings.TrimSpace(noteText) == "" {
 		return
 	}
-	if err := appservices.SaveWorktreeNote(repoKey, cfg.WorktreeDir, cfg.WorktreeNotesPath, targetPath, noteText); err != nil && !silent {
+	if err := appservices.SaveWorktreeNote(repoKey, cfg.WorktreeDir, cfg.WorktreeNotesPath, cfg.WorktreeNoteType, targetPath, noteText, nil); err != nil && !silent {
 		fmt.Fprintf(os.Stderr, "Warning: failed to save worktree note: %v\n", err)
 	}
 }

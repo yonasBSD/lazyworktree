@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/chmouel/lazyworktree/internal/app/services"
+	"github.com/chmouel/lazyworktree/internal/config"
 	"github.com/chmouel/lazyworktree/internal/models"
 )
 
@@ -14,6 +15,9 @@ func worktreeNoteKey(path string) string {
 }
 
 func (m *Model) worktreeNoteKey(path string) string {
+	if m.getWorktreeNoteType() == config.NoteTypeSplitted {
+		return filepath.Base(path)
+	}
 	notesPath := m.getWorktreeNotesPath()
 	if notesPath == "" {
 		return worktreeNoteKey(path)
@@ -28,8 +32,28 @@ func (m *Model) getWorktreeNotesPath() string {
 	return strings.TrimSpace(m.config.WorktreeNotesPath)
 }
 
+func (m *Model) getWorktreeNoteType() string {
+	if m.config == nil {
+		return ""
+	}
+	return strings.TrimSpace(m.config.WorktreeNoteType)
+}
+
+func (m *Model) buildNoteEnv() map[string]string {
+	wt := m.selectedWorktree()
+	branch := ""
+	wtPath := ""
+	if wt != nil {
+		branch = wt.Branch
+		wtPath = wt.Path
+	}
+	return services.BuildCommandEnv(branch, wtPath, m.getRepoKey(), m.getMainWorktreePath())
+}
+
 func (m *Model) loadWorktreeNotes() {
-	notes, err := services.LoadWorktreeNotes(m.getRepoKey(), m.getWorktreeDir(), m.getWorktreeNotesPath())
+	noteType := m.getWorktreeNoteType()
+	env := m.buildNoteEnv()
+	notes, err := services.LoadWorktreeNotes(m.getRepoKey(), m.getWorktreeDir(), m.getWorktreeNotesPath(), noteType, env)
 	if err != nil {
 		m.debugf("failed to parse worktree notes: %v", err)
 		return
@@ -39,22 +63,26 @@ func (m *Model) loadWorktreeNotes() {
 	}
 	m.worktreeNotes = notes
 
-	// Auto-migrate per-repo notes to shared file if configured.
-	if n, err := services.MigrateRepoNotesToSharedFile(
-		m.getRepoKey(), m.getWorktreeDir(), m.getWorktreeNotesPath(),
-	); err != nil {
-		m.debugf("failed to migrate worktree notes: %v", err)
-	} else if n > 0 {
-		reloaded, err := services.LoadWorktreeNotes(m.getRepoKey(), m.getWorktreeDir(), m.getWorktreeNotesPath())
-		if err == nil && reloaded != nil {
-			m.worktreeNotes = reloaded
+	// Auto-migrate per-repo notes to shared file if configured (onejson only).
+	if noteType != config.NoteTypeSplitted {
+		if n, err := services.MigrateRepoNotesToSharedFile(
+			m.getRepoKey(), m.getWorktreeDir(), m.getWorktreeNotesPath(),
+		); err != nil {
+			m.debugf("failed to migrate worktree notes: %v", err)
+		} else if n > 0 {
+			reloaded, err := services.LoadWorktreeNotes(m.getRepoKey(), m.getWorktreeDir(), m.getWorktreeNotesPath(), noteType, env)
+			if err == nil && reloaded != nil {
+				m.worktreeNotes = reloaded
+			}
+			m.debugf("migrated %d worktree note(s) to shared file", n)
 		}
-		m.debugf("migrated %d worktree note(s) to shared file", n)
 	}
 }
 
 func (m *Model) saveWorktreeNotes() {
-	if err := services.SaveWorktreeNotes(m.getRepoKey(), m.getWorktreeDir(), m.getWorktreeNotesPath(), m.worktreeNotes); err != nil {
+	noteType := m.getWorktreeNoteType()
+	env := m.buildNoteEnv()
+	if err := services.SaveWorktreeNotes(m.getRepoKey(), m.getWorktreeDir(), m.getWorktreeNotesPath(), noteType, m.worktreeNotes, env); err != nil {
 		m.debugf("failed to write worktree notes: %v", err)
 	}
 }
@@ -149,6 +177,9 @@ func (m *Model) deleteWorktreeNote(path string) {
 		return
 	}
 	delete(m.worktreeNotes, key)
+	if m.getWorktreeNoteType() == config.NoteTypeSplitted {
+		_ = services.DeleteSplittedNoteFile(m.getWorktreeNotesPath(), key, m.buildNoteEnv())
+	}
 	m.saveWorktreeNotes()
 }
 
@@ -163,6 +194,9 @@ func (m *Model) migrateWorktreeNote(oldPath, newPath string) {
 	}
 
 	delete(m.worktreeNotes, oldKey)
+	if m.getWorktreeNoteType() == config.NoteTypeSplitted {
+		_ = services.DeleteSplittedNoteFile(m.getWorktreeNotesPath(), oldKey, m.buildNoteEnv())
+	}
 	note.UpdatedAt = time.Now().Unix()
 	m.worktreeNotes[m.worktreeNoteKey(newPath)] = note
 	m.saveWorktreeNotes()
@@ -194,13 +228,15 @@ func (m *Model) pruneStaleWorktreeNotes(worktrees []*models.WorktreeInfo) {
 		return
 	}
 
+	isSplitted := m.getWorktreeNoteType() == config.NoteTypeSplitted
+
 	validPaths := make(map[string]bool, len(worktrees))
 	for _, wt := range worktrees {
 		if wt == nil || strings.TrimSpace(wt.Path) == "" {
 			continue
 		}
 		validPaths[m.worktreeNoteKey(wt.Path)] = true
-		if m.getWorktreeNotesPath() != "" {
+		if !isSplitted && m.getWorktreeNotesPath() != "" {
 			validPaths[filepath.Clean(wt.Path)] = true
 		}
 	}
@@ -208,6 +244,9 @@ func (m *Model) pruneStaleWorktreeNotes(worktrees []*models.WorktreeInfo) {
 	changed := false
 	for key := range m.worktreeNotes {
 		if !validPaths[key] {
+			if isSplitted {
+				_ = services.DeleteSplittedNoteFile(m.getWorktreeNotesPath(), key, m.buildNoteEnv())
+			}
 			delete(m.worktreeNotes, key)
 			changed = true
 		}

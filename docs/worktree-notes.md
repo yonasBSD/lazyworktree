@@ -48,6 +48,35 @@ worktree_notes_path: ".lazyworktree/notes.json"
 
 When `worktree_notes_path` is set, note keys are stored relative to `worktree_dir` instead of absolute filesystem paths, making the file portable across machines and clones.
 
+### Splitted mode
+
+For individual markdown files instead of a single JSON file, use the `splitted` note type. Each worktree note becomes a separate file with YAML frontmatter (icon, timestamp) and a markdown body:
+
+```yaml
+worktree_note_type: splitted
+worktree_notes_path: "~/notes/$REPO_OWNER/$REPO_REPONAME/$WORKTREE_NAME.md"
+```
+
+Template variables:
+
+- `$REPO_NAME` — `owner/repo` combined (e.g. `myorg/myrepo`) — convenient shorthand for a two-level directory
+- `$REPO_OWNER` — repository owner only (e.g. `myorg`)
+- `$REPO_REPONAME` — repository name only (e.g. `myrepo`)
+- `$WORKTREE_NAME` — worktree directory basename
+
+Note files use this format:
+
+```markdown
+---
+icon: "⚡"
+updated_at: 1709740800
+---
+The note content here.
+Supports **markdown**.
+```
+
+This makes notes easy to browse, search, and edit with external tools.
+
 ## Example script: PR details to LLM note
 
 For more control, point `worktree_note_script` to your own script. The script can receive PR title/body on stdin, call your preferred LLM, and return a concise note.

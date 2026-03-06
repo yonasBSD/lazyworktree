@@ -120,7 +120,7 @@ func TestCreateFromPR_SuccessWithWorktreeNoteScript(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	notes, err := appservices.LoadWorktreeNotes("repo", worktreeDir, "")
+	notes, err := appservices.LoadWorktreeNotes("repo", worktreeDir, "", "", nil)
 	if err != nil {
 		t.Fatalf("failed to load notes: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestCreateFromPR_SuccessWithWorktreeNoteScriptSharedPath(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	notes, err := appservices.LoadWorktreeNotes("repo", worktreeDir, sharedNotesPath)
+	notes, err := appservices.LoadWorktreeNotes("repo", worktreeDir, sharedNotesPath, "", nil)
 	if err != nil {
 		t.Fatalf("failed to load notes: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestCreateFromPR_WorktreeNoteScriptFailureNonFatal(t *testing.T) {
 		t.Fatalf("unexpected worktree name: %q", got)
 	}
 
-	notes, err := appservices.LoadWorktreeNotes("repo", worktreeDir, "")
+	notes, err := appservices.LoadWorktreeNotes("repo", worktreeDir, "", "", nil)
 	if err != nil {
 		t.Fatalf("failed to load notes: %v", err)
 	}
@@ -469,7 +469,7 @@ func TestCreateFromIssue_SuccessWithWorktreeNoteScript(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	notes, err := appservices.LoadWorktreeNotes("repo", worktreeDir, "")
+	notes, err := appservices.LoadWorktreeNotes("repo", worktreeDir, "", "", nil)
 	if err != nil {
 		t.Fatalf("failed to load notes: %v", err)
 	}
