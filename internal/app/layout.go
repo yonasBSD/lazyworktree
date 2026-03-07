@@ -348,7 +348,7 @@ func (m *Model) computeTopLayoutDims(width, height, headerHeight, footerHeight, 
 
 	hasNotes := m.hasNoteForSelectedWorktree()
 
-	// Vertical split: top / bottom with focus adjustments
+	// Vertical split: top / bottom with focus adjustments.
 	baseTopRatio := m.layoutRatio("worktrees", 0.30)
 	topRatio := baseTopRatio
 	switch m.state.view.FocusedPane {

@@ -2605,6 +2605,67 @@ func TestZoomPaneExitsOnTabKey(t *testing.T) {
 	}
 }
 
+func TestTabChangesDefaultLayoutGeometryWithFocus(t *testing.T) {
+	cfg := &config.AppConfig{
+		WorktreeDir: t.TempDir(),
+	}
+	m := NewModel(cfg, "")
+	m.state.view.WindowWidth = 120
+	m.state.view.WindowHeight = 40
+	m.state.view.FocusedPane = 0
+	m.state.data.statusFilesAll = []StatusFile{{Filename: "file.go", Status: ".M"}}
+
+	before := m.computeLayout()
+
+	updated, _ := m.handleBuiltInKey(tea.KeyPressMsg{Code: tea.KeyTab})
+	updatedModel, ok := updated.(*Model)
+	if !ok {
+		t.Fatalf("expected updated model, got %T", updated)
+	}
+	m = updatedModel
+
+	after := m.computeLayout()
+	if before.leftWidth == after.leftWidth && before.rightWidth == after.rightWidth &&
+		before.rightTopHeight == after.rightTopHeight && before.rightMiddleHeight == after.rightMiddleHeight &&
+		before.rightBottomHeight == after.rightBottomHeight {
+		t.Fatalf("expected pane geometry to change after tab when auto resize is enabled: before=%+v after=%+v", before, after)
+	}
+}
+
+func TestTabLeavingGitStatusRefreshesCachedStatusContent(t *testing.T) {
+	cfg := &config.AppConfig{
+		WorktreeDir: t.TempDir(),
+	}
+	m := NewModel(cfg, "")
+	m.state.view.FocusedPane = 2
+	m.state.ui.statusViewport = viewport.New(viewport.WithWidth(40), viewport.WithHeight(10))
+	m.setStatusFiles([]StatusFile{
+		{Filename: "file1.go", Status: ".M"},
+		{Filename: "file2.go", Status: ".M"},
+	})
+	m.state.services.statusTree.Index = 1
+	m.rebuildStatusContentWithHighlight()
+
+	focusedContent := m.statusContent
+
+	updated, _ := m.handleBuiltInKey(tea.KeyPressMsg{Code: tea.KeyTab})
+	updatedModel, ok := updated.(*Model)
+	if !ok {
+		t.Fatalf("expected updated model, got %T", updated)
+	}
+	m = updatedModel
+
+	if m.state.view.FocusedPane != 3 {
+		t.Fatalf("expected focusedPane to be 3 after leaving git status with tab, got %d", m.state.view.FocusedPane)
+	}
+	if m.statusContent == focusedContent {
+		t.Fatal("expected cached status content to refresh after leaving git status pane")
+	}
+	if m.statusContent != m.renderStatusFiles() {
+		t.Fatal("expected cached status content to match current render after pane switch")
+	}
+}
+
 func TestZoomPaneExitsOnBracketKey(t *testing.T) {
 	cfg := &config.AppConfig{
 		WorktreeDir: t.TempDir(),

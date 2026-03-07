@@ -254,20 +254,17 @@ func (m *Model) registerPaletteActions(registry *commands.Registry) {
 		},
 		FocusWorktree: func() tea.Cmd {
 			m.state.view.ZoomedPane = -1
-			m.state.view.FocusedPane = 0
-			m.state.ui.worktreeTable.Focus()
+			m.switchPane(0)
 			return nil
 		},
 		FocusStatus: func() tea.Cmd {
 			m.state.view.ZoomedPane = -1
-			m.state.view.FocusedPane = 1
-			m.rebuildStatusContentWithHighlight()
+			m.switchPane(1)
 			return nil
 		},
 		FocusLog: func() tea.Cmd {
 			m.state.view.ZoomedPane = -1
-			m.state.view.FocusedPane = 3
-			m.state.ui.logTable.Focus()
+			m.switchPane(3)
 			return nil
 		},
 		SortCycle: func() tea.Cmd {

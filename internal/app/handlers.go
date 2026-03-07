@@ -274,6 +274,33 @@ func (m *Model) nextPane(current, direction int) int {
 	return panes[len(panes)-1]
 }
 
+// switchPane updates pane focus and refreshes any cached pane content whose
+// rendering depends on focus state.
+func (m *Model) switchPane(targetPane int) {
+	previousPane := m.state.view.FocusedPane
+	if previousPane == targetPane {
+		return
+	}
+
+	if previousPane == 1 && targetPane != 1 {
+		m.ciCheckIndex = -1
+	}
+
+	m.state.view.FocusedPane = targetPane
+
+	switch targetPane {
+	case 0:
+		m.state.ui.worktreeTable.Focus()
+	case 3:
+		m.state.ui.logTable.Focus()
+	}
+
+	if previousPane == 1 || targetPane == 1 || previousPane == 2 || targetPane == 2 {
+		m.rebuildStatusContentWithHighlight()
+	}
+	m.restyleLogRows()
+}
+
 // handleBuiltInKey processes built-in keyboard shortcuts.
 func (m *Model) handleBuiltInKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
@@ -296,17 +323,9 @@ func (m *Model) handleBuiltInKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				m.state.view.ZoomedPane = targetPane // zoom
 			}
 		} else {
-			// Switching to different pane - exit zoom and switch
 			m.state.view.ZoomedPane = -1
-			wasPane1 := m.state.view.FocusedPane == 1
-			if wasPane1 {
-				m.ciCheckIndex = -1
-			}
-			m.state.view.FocusedPane = targetPane
-			m.state.ui.worktreeTable.Focus()
-			if wasPane1 {
-				m.rebuildStatusContentWithHighlight()
-			}
+			m.switchPane(targetPane)
+			return m, nil
 		}
 		m.restyleLogRows()
 		return m, nil
@@ -321,7 +340,8 @@ func (m *Model) handleBuiltInKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 		} else {
 			m.state.view.ZoomedPane = -1
-			m.state.view.FocusedPane = targetPane
+			m.switchPane(targetPane)
+			return m, nil
 		}
 		m.rebuildStatusContentWithHighlight()
 		m.restyleLogRows()
@@ -340,11 +360,8 @@ func (m *Model) handleBuiltInKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 		} else {
 			m.state.view.ZoomedPane = -1
-			wasPane1 := m.state.view.FocusedPane == 1
-			if wasPane1 {
-				m.ciCheckIndex = -1
-			}
-			m.state.view.FocusedPane = targetPane
+			m.switchPane(targetPane)
+			return m, nil
 		}
 		m.rebuildStatusContentWithHighlight()
 		m.restyleLogRows()
@@ -360,15 +377,8 @@ func (m *Model) handleBuiltInKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 		} else {
 			m.state.view.ZoomedPane = -1
-			wasPane1 := m.state.view.FocusedPane == 1
-			if wasPane1 {
-				m.ciCheckIndex = -1
-			}
-			m.state.view.FocusedPane = targetPane
-			m.state.ui.logTable.Focus()
-			if wasPane1 {
-				m.rebuildStatusContentWithHighlight()
-			}
+			m.switchPane(targetPane)
+			return m, nil
 		}
 		m.restyleLogRows()
 		return m, nil
@@ -386,54 +396,20 @@ func (m *Model) handleBuiltInKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 		} else {
 			m.state.view.ZoomedPane = -1
-			wasPane1 := m.state.view.FocusedPane == 1
-			if wasPane1 {
-				m.ciCheckIndex = -1
-			}
-			m.state.view.FocusedPane = targetPane
-			if wasPane1 {
-				m.rebuildStatusContentWithHighlight()
-			}
+			m.switchPane(targetPane)
+			return m, nil
 		}
 		m.restyleLogRows()
 		return m, nil
 
 	case keyTab, "]":
 		m.state.view.ZoomedPane = -1
-		wasPane1 := m.state.view.FocusedPane == 1
-		m.state.view.FocusedPane = m.nextPane(m.state.view.FocusedPane, 1)
-		if wasPane1 && m.state.view.FocusedPane != 1 {
-			m.ciCheckIndex = -1
-		}
-		switch m.state.view.FocusedPane {
-		case 0:
-			m.state.ui.worktreeTable.Focus()
-		case 3:
-			m.state.ui.logTable.Focus()
-		}
-		if wasPane1 || m.state.view.FocusedPane == 1 || m.state.view.FocusedPane == 2 {
-			m.rebuildStatusContentWithHighlight()
-		}
-		m.restyleLogRows()
+		m.switchPane(m.nextPane(m.state.view.FocusedPane, 1))
 		return m, nil
 
 	case "[":
 		m.state.view.ZoomedPane = -1
-		wasPane1 := m.state.view.FocusedPane == 1
-		m.state.view.FocusedPane = m.nextPane(m.state.view.FocusedPane, -1)
-		if wasPane1 && m.state.view.FocusedPane != 1 {
-			m.ciCheckIndex = -1
-		}
-		switch m.state.view.FocusedPane {
-		case 0:
-			m.state.ui.worktreeTable.Focus()
-		case 3:
-			m.state.ui.logTable.Focus()
-		}
-		if wasPane1 || m.state.view.FocusedPane == 1 || m.state.view.FocusedPane == 2 {
-			m.rebuildStatusContentWithHighlight()
-		}
-		m.restyleLogRows()
+		m.switchPane(m.nextPane(m.state.view.FocusedPane, -1))
 		return m, nil
 
 	case "h":

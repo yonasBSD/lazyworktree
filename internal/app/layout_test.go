@@ -90,23 +90,18 @@ func TestComputeTopLayoutFocusDynamic(t *testing.T) {
 			m.state.view.WindowWidth = 120
 			m.state.view.WindowHeight = 40
 			m.state.view.FocusedPane = tt.focusedPane
-			// Add status files so git status pane is visible (3-way split)
 			m.state.data.statusFilesAll = []StatusFile{{Filename: "file.go", Status: ".M"}}
 
 			layout := m.computeLayout()
 
 			assert.Equal(t, state.LayoutTop, layout.layoutMode)
 
-			// Verify focus-based ratio changes
 			switch tt.focusedPane {
 			case 0:
-				// Worktree focused: top gets more space
 				assert.Greater(t, layout.topHeight, layout.bottomHeight/2)
 			case 1:
-				// Status focused: bottom left (status) should be wider
 				assert.Greater(t, layout.bottomLeftWidth, layout.bottomRightWidth)
 			case 3:
-				// Commit focused: bottom right (commit) should get more space than others
 				assert.Greater(t, layout.bottomRightWidth, layout.bottomLeftWidth)
 			}
 		})
@@ -458,17 +453,14 @@ func TestCustomLayoutSizesFocusStillWorks(t *testing.T) {
 	m.state.view.WindowWidth = 120
 	m.state.view.WindowHeight = 40
 
-	// Unfocused (pane 0)
 	m.state.view.FocusedPane = 0
 	layoutUnfocused := m.computeLayout()
 
-	// Right pane focused — left should shrink
 	m.state.view.FocusedPane = 1
 	layoutFocused := m.computeLayout()
 
 	assert.Less(t, layoutFocused.leftWidth, layoutUnfocused.leftWidth,
 		"focusing right pane should shrink left pane even with custom sizes")
-	// Both must have valid totals
 	assert.Equal(t, 120, layoutUnfocused.leftWidth+layoutUnfocused.gapX+layoutUnfocused.rightWidth)
 	assert.Equal(t, 120, layoutFocused.leftWidth+layoutFocused.gapX+layoutFocused.rightWidth)
 }
