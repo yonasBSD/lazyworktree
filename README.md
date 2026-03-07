@@ -48,7 +48,7 @@ _[You can see more screenshots here](https://chmouel.github.io/lazyworktree/#scr
 - CI & PR/MR status — See GitHub Actions and GitLab CI results, check PR/MR details, view logs
 - Notes & taskboard — Write markdown notes per worktree or tasks to track what you're working on
 - Worktree colour — Set a colour per worktree from the command palette using the picker or a custom value (hex, supported named colour, or 256 index; stored in notes/frontmatter)
-- Command palette — Quick access to all actions and custom commands with `?`; use `_` prefix for palette-only commands
+- Command palette — Quick access to all actions and custom commands with `?`, including an explicit **Open commit screen** action; use `_` prefix for palette-only commands
 - Tmux and Zellij support — Automatically open worktrees in new tmux windows/panes or zellij tabs
 - Docker/Podman support — Run commands in Docker or Podman containers tied to the worktree
 - Custom commands — Set up shell commands in config, bind them to keys, show them in the palette

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -501,5 +502,303 @@ func TestCollectInitTerminateCommands(t *testing.T) {
 	termCmds := m.collectTerminateCommands()
 	if strings.Join(termCmds, ",") != "term-1,term-2" {
 		t.Fatalf("unexpected terminate commands: %v", termCmds)
+	}
+}
+
+func TestCommitModalSubmitCleansTempFileAfterExecCallback(t *testing.T) {
+	cfg := &config.AppConfig{
+		WorktreeDir: t.TempDir(),
+	}
+	m := NewModel(cfg, "")
+	m.setWindowSize(160, 60)
+	wtPath := t.TempDir()
+	wt := &models.WorktreeInfo{Path: wtPath, Branch: featureBranch}
+	m.state.data.filteredWts = []*models.WorktreeInfo{wt}
+	m.state.data.selectedIndex = 0
+
+	var captured *exec.Cmd
+	var callback tea.ExecCallback
+	m.execProcess = func(cmd *exec.Cmd, cb tea.ExecCallback) tea.Cmd {
+		captured = cmd
+		callback = cb
+		return func() tea.Msg { return nil }
+	}
+
+	if cmd := m.performCommit(wt, false, false); cmd != nil {
+		t.Fatal("expected nil command because commit modal should be shown")
+	}
+
+	scr, ok := m.state.ui.screenManager.Current().(*appscreen.CommitMessageScreen)
+	if !ok {
+		t.Fatal("expected commit message screen to be active")
+	}
+	if submitCmd := scr.OnSubmit("test commit"); submitCmd == nil {
+		t.Fatal("expected submit command")
+	}
+	if captured == nil || callback == nil {
+		t.Fatal("expected execProcess to capture command and callback")
+	}
+
+	if captured.Args[0] != testBashCmd || len(captured.Args) < 3 || captured.Args[1] != "-c" {
+		t.Fatalf("expected bash -c commit command, got %v", captured.Args)
+	}
+	matches := regexp.MustCompile(`-F '([^']+)'`).FindStringSubmatch(captured.Args[2])
+	if len(matches) != 2 {
+		t.Fatalf("expected temp file in commit command, got %q", captured.Args[2])
+	}
+	tmpFile := matches[1]
+
+	if _, err := os.Stat(tmpFile); err != nil {
+		t.Fatalf("expected temp file to exist before callback: %v", err)
+	}
+
+	msg := callback(nil)
+	if _, ok := msg.(refreshCompleteMsg); !ok {
+		t.Fatalf("expected refreshCompleteMsg, got %T", msg)
+	}
+
+	if _, err := os.Stat(tmpFile); !os.IsNotExist(err) {
+		t.Fatalf("expected temp file to be removed after callback, got err=%v", err)
+	}
+}
+
+func TestCommitAutoGenerateRunsConfiguredCommandWithoutShell(t *testing.T) {
+	cfg := &config.AppConfig{
+		WorktreeDir: t.TempDir(),
+	}
+	cfg.Commit.AutoGenerateCommand = `mygen --style "one line"`
+	m := NewModel(cfg, "")
+	m.setWindowSize(160, 60)
+	wtPath := t.TempDir()
+	wt := &models.WorktreeInfo{Path: wtPath, Branch: featureBranch}
+	m.state.data.filteredWts = []*models.WorktreeInfo{wt}
+	m.state.data.selectedIndex = 0
+
+	type call struct {
+		name string
+		args []string
+	}
+	var calls []call
+	m.commandRunner = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		calls = append(calls, call{name: name, args: append([]string{}, args...)})
+		switch name {
+		case "git":
+			return exec.Command("printf", "staged-diff") //#nosec G204,G702 -- controlled test helper
+		case "mygen":
+			return exec.Command("cat") //#nosec G204,G702 -- controlled test helper
+		default:
+			return exec.Command("false") //#nosec G204,G702 -- controlled test helper
+		}
+	}
+
+	if cmd := m.performCommit(wt, false, false); cmd != nil {
+		t.Fatal("expected nil command because commit modal should be shown")
+	}
+	scr, ok := m.state.ui.screenManager.Current().(*appscreen.CommitMessageScreen)
+	if !ok {
+		t.Fatal("expected commit message screen to be active")
+	}
+	if scr.OnAutoGenerate == nil {
+		t.Fatal("expected auto-generate callback")
+	}
+
+	msg := scr.OnAutoGenerate()()
+	result, ok := msg.(autoGenerateResultMsg)
+	if !ok {
+		t.Fatalf("expected autoGenerateResultMsg, got %T", msg)
+	}
+	if result.result != "staged-diff" {
+		t.Fatalf("expected generated output from piped diff, got %q", result.result)
+	}
+
+	var sawDiff bool
+	var sawGenerator bool
+	for _, c := range calls {
+		if c.name == testBashCmd {
+			t.Fatalf("did not expect bash execution for auto-generate, got %v", calls)
+		}
+		if c.name == "git" && strings.Join(c.args, " ") == "diff --staged" {
+			sawDiff = true
+		}
+		if c.name == "mygen" {
+			sawGenerator = true
+			if got := strings.Join(c.args, "|"); got != "--style|one line" {
+				t.Fatalf("expected parsed args with quoted token, got %v", c.args)
+			}
+		}
+	}
+	if !sawDiff {
+		t.Fatalf("expected git diff --staged to run, got %v", calls)
+	}
+	if !sawGenerator {
+		t.Fatalf("expected configured generator command to run, got %v", calls)
+	}
+}
+
+func TestCommitModalEditExternalReturnsUpdatedDraft(t *testing.T) {
+	cfg := &config.AppConfig{
+		WorktreeDir: t.TempDir(),
+		Editor:      "fake-editor",
+	}
+	m := NewModel(cfg, "")
+	m.setWindowSize(160, 60)
+	wtPath := t.TempDir()
+	wt := &models.WorktreeInfo{Path: wtPath, Branch: featureBranch}
+	m.state.data.filteredWts = []*models.WorktreeInfo{wt}
+	m.state.data.selectedIndex = 0
+
+	var captured *exec.Cmd
+	var callback tea.ExecCallback
+	m.execProcess = func(cmd *exec.Cmd, cb tea.ExecCallback) tea.Cmd {
+		captured = cmd
+		callback = cb
+		return func() tea.Msg { return nil }
+	}
+
+	if cmd := m.performCommit(wt, false, false); cmd != nil {
+		t.Fatal("expected nil command because commit modal should be shown")
+	}
+
+	scr, ok := m.state.ui.screenManager.Current().(*appscreen.CommitMessageScreen)
+	if !ok {
+		t.Fatal("expected commit message screen to be active")
+	}
+	if scr.OnEditExternal == nil {
+		t.Fatal("expected external editor callback to be configured")
+	}
+	if cmd := scr.OnEditExternal("subject\n\nbody"); cmd == nil {
+		t.Fatal("expected external editor command")
+	}
+	if captured == nil || callback == nil {
+		t.Fatal("expected execProcess to capture command and callback")
+	}
+
+	matches := regexp.MustCompile(`'([^']+COMMIT_EDITMSG)'`).FindStringSubmatch(captured.Args[2])
+	if len(matches) != 2 {
+		t.Fatalf("expected temp file in editor command, got %q", captured.Args[2])
+	}
+	tmpFile := matches[1]
+	if tmpFile != filepath.Join(os.TempDir(), "COMMIT_EDITMSG") {
+		t.Fatalf("expected commit draft path %q, got %q", filepath.Join(os.TempDir(), "COMMIT_EDITMSG"), tmpFile)
+	}
+	if err := os.WriteFile(tmpFile, []byte("edited subject\n\nedited body"), 0o600); err != nil {
+		t.Fatalf("failed to rewrite temp file: %v", err)
+	}
+
+	msg := callback(nil)
+	result, ok := msg.(commitExternalEditorResultMsg)
+	if !ok {
+		t.Fatalf("expected commitExternalEditorResultMsg, got %T", msg)
+	}
+	if result.result != "edited subject\n\nedited body" {
+		t.Fatalf("unexpected edited draft %q", result.result)
+	}
+	if _, err := os.Stat(tmpFile); !os.IsNotExist(err) {
+		t.Fatalf("expected temp file to be removed after callback, got err=%v", err)
+	}
+}
+
+func TestAutoGenerateResultWhenCommitScreenInactiveUpdatesStatus(t *testing.T) {
+	cfg := &config.AppConfig{
+		WorktreeDir: t.TempDir(),
+	}
+	m := NewModel(cfg, "")
+	m.statusContent = ""
+
+	_, cmd := m.Update(autoGenerateResultMsg{result: "generated commit subject"})
+	if cmd != nil {
+		t.Fatal("expected nil command")
+	}
+	if !strings.Contains(m.statusContent, "commit screen is no longer active") {
+		t.Fatalf("expected status update when commit screen is inactive, got %q", m.statusContent)
+	}
+}
+
+func TestAutoGenerateResultUpdatesCommitScreenUsingGeneratedFormat(t *testing.T) {
+	cfg := &config.AppConfig{
+		WorktreeDir: t.TempDir(),
+	}
+	m := NewModel(cfg, "")
+	m.setWindowSize(160, 60)
+	wtPath := t.TempDir()
+	wt := &models.WorktreeInfo{Path: wtPath, Branch: featureBranch}
+	m.state.data.filteredWts = []*models.WorktreeInfo{wt}
+	m.state.data.selectedIndex = 0
+
+	if cmd := m.performCommit(wt, false, false); cmd != nil {
+		t.Fatal("expected nil command because commit modal should be shown")
+	}
+
+	_, cmd := m.Update(autoGenerateResultMsg{result: "subject line\n\nbody line\nextra detail"})
+	if cmd != nil {
+		t.Fatal("expected nil command")
+	}
+
+	scr, ok := m.state.ui.screenManager.Current().(*appscreen.CommitMessageScreen)
+	if !ok {
+		t.Fatal("expected commit message screen to remain active")
+	}
+	if scr.SubjectInput.Value() != "subject line" {
+		t.Fatalf("expected subject to update, got %q", scr.SubjectInput.Value())
+	}
+	if scr.BodyInput.Value() != "body line\nextra detail" {
+		t.Fatalf("expected body to start on third line, got %q", scr.BodyInput.Value())
+	}
+}
+
+func TestCommitExternalEditorResultUpdatesCommitScreen(t *testing.T) {
+	cfg := &config.AppConfig{
+		WorktreeDir: t.TempDir(),
+		Editor:      "fake-editor",
+	}
+	m := NewModel(cfg, "")
+	m.setWindowSize(160, 60)
+	wtPath := t.TempDir()
+	wt := &models.WorktreeInfo{Path: wtPath, Branch: featureBranch}
+	m.state.data.filteredWts = []*models.WorktreeInfo{wt}
+	m.state.data.selectedIndex = 0
+
+	if cmd := m.performCommit(wt, false, false); cmd != nil {
+		t.Fatal("expected nil command because commit modal should be shown")
+	}
+
+	_, cmd := m.Update(commitExternalEditorResultMsg{result: "subject line\n\nbody line"})
+	if cmd != nil {
+		t.Fatal("expected nil command")
+	}
+
+	scr, ok := m.state.ui.screenManager.Current().(*appscreen.CommitMessageScreen)
+	if !ok {
+		t.Fatal("expected commit message screen to remain active")
+	}
+	if scr.SubjectInput.Value() != "subject line" {
+		t.Fatalf("expected subject to update, got %q", scr.SubjectInput.Value())
+	}
+	if scr.BodyInput.Value() != "body line" {
+		t.Fatalf("expected body to update, got %q", scr.BodyInput.Value())
+	}
+}
+
+func TestPerformCommitUsesCurrentWindowSizeForModal(t *testing.T) {
+	cfg := &config.AppConfig{
+		WorktreeDir: t.TempDir(),
+	}
+	m := NewModel(cfg, "")
+	m.setWindowSize(160, 60)
+	wtPath := t.TempDir()
+	wt := &models.WorktreeInfo{Path: wtPath, Branch: featureBranch}
+	m.state.data.filteredWts = []*models.WorktreeInfo{wt}
+	m.state.data.selectedIndex = 0
+
+	if cmd := m.performCommit(wt, false, false); cmd != nil {
+		t.Fatal("expected nil command because commit modal should be shown")
+	}
+
+	scr, ok := m.state.ui.screenManager.Current().(*appscreen.CommitMessageScreen)
+	if !ok {
+		t.Fatal("expected commit message screen to be active")
+	}
+	if scr.SubjectInput.Width() < 110 {
+		t.Fatalf("expected modal to use current window width, got subject width %d", scr.SubjectInput.Width())
 	}
 }

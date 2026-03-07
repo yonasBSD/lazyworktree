@@ -131,6 +131,11 @@ type CustomTheme struct {
 	Cyan      string
 }
 
+// CommitConfig defines settings for commit operations.
+type CommitConfig struct {
+	AutoGenerateCommand string `yaml:"auto_generate_command"`
+}
+
 // AppConfig defines the global lazyworktree configuration options.
 type AppConfig struct {
 	WorktreeDir             string
@@ -175,6 +180,7 @@ type AppConfig struct {
 	CustomThemes            map[string]*CustomTheme // User-defined custom themes
 	LayoutSizes             *LayoutSizes            // Configurable pane size weights (nil = use defaults)
 	ConfigPath              string                  `yaml:"-"` // Path to the configuration file
+	Commit                  CommitConfig            `yaml:"commit"`
 }
 
 // RepoConfig represents repository-scoped commands from .wt
@@ -282,6 +288,19 @@ func parseConfig(data map[string]any) (*AppConfig, error) {
 		editor = strings.TrimSpace(editor)
 		if editor != "" {
 			cfg.Editor = editor
+		}
+	}
+	if autoGenerateCommand, ok := data["commit.auto_generate_command"].(string); ok {
+		autoGenerateCommand = strings.TrimSpace(autoGenerateCommand)
+		if autoGenerateCommand != "" {
+			cfg.Commit.AutoGenerateCommand = autoGenerateCommand
+		}
+	} else if commitData, ok := data["commit"].(map[string]any); ok {
+		if autoGenerateCommand, ok := commitData["auto_generate_command"].(string); ok {
+			autoGenerateCommand = strings.TrimSpace(autoGenerateCommand)
+			if autoGenerateCommand != "" {
+				cfg.Commit.AutoGenerateCommand = autoGenerateCommand
+			}
 		}
 	}
 
@@ -988,6 +1007,9 @@ func (cfg *AppConfig) ApplyCLIOverrides(overrides []string) error {
 	}
 	if overrideCfg.Editor != "" {
 		cfg.Editor = overrideCfg.Editor
+	}
+	if overrideCfg.Commit.AutoGenerateCommand != "" {
+		cfg.Commit.AutoGenerateCommand = overrideCfg.Commit.AutoGenerateCommand
 	}
 	if overrideCfg.DebugLog != "" {
 		cfg.DebugLog = overrideCfg.DebugLog

@@ -164,8 +164,8 @@ type StatusHandlers struct {
 func RegisterStatusPaneActions(r *Registry, h StatusHandlers) {
 	r.Register(
 		CommandAction{ID: "stage-file", Label: "Stage/unstage file", Description: "Stage or unstage selected file", Section: sectionStatusPane, Shortcut: "s", Icon: IconStatus, Handler: h.StageFile},
-		CommandAction{ID: "commit-staged", Label: "Commit staged", Description: "Commit staged changes", Section: sectionStatusPane, Shortcut: "c", Icon: IconStatus, Handler: h.CommitStaged},
-		CommandAction{ID: "commit-all", Label: "Stage all and commit", Description: "Stage all changes and commit", Section: sectionStatusPane, Shortcut: "C", Icon: IconStatus, Handler: h.CommitAll},
+		CommandAction{ID: "commit-staged", Label: "Open commit screen", Description: "Open the commit screen for staged changes (or prompt to stage all)", Section: sectionStatusPane, Shortcut: "c", Icon: IconStatus, Handler: h.CommitStaged},
+		CommandAction{ID: "commit-all", Label: "Commit changes using git editor", Description: "Commit using git editor", Section: sectionStatusPane, Shortcut: "C", Icon: IconStatus, Handler: h.CommitAll},
 		CommandAction{ID: "edit-file", Label: "Edit file", Description: "Open selected file in editor", Section: sectionStatusPane, Shortcut: "e", Icon: IconStatus, Handler: h.EditFile},
 		CommandAction{ID: "delete-file", Label: "Delete selected file or directory", Section: sectionStatusPane, Icon: IconStatus, Handler: h.DeleteFile},
 	)

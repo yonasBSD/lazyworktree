@@ -142,6 +142,22 @@ pager: "less --use-color --wordwrap -swMQcR -P 'Press q to exit..'"
 editor: nvim
 
 # ============================================================================
+# COMMIT SCREEN
+# ============================================================================
+
+# Command run by Ctrl+O in the commit screen to generate a message from the
+# staged diff. The diff is passed to the command on stdin.
+#
+# Expected output:
+#   line 1 -> commit subject
+#   line 2 -> blank separator
+#   line 3+ -> commit body
+#
+# Example:
+# commit:
+#   auto_generate_command: 'aichat "Write a concise conventional commit message for this staged diff"'
+
+# ============================================================================
 # BRANCH NAMING
 # ============================================================================
 

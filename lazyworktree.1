@@ -105,7 +105,7 @@ Override config values from the command line (repeatable).
 .br
 Format: \fB--config=lw.key=value\fR
 .br
-Supported keys: \fBtheme\fR, \fBworktree_dir\fR, \fBsort_mode\fR, \fBauto_refresh\fR, \fBdisable_pr\fR, \fBsearch_auto_select\fR, \fBfuzzy_finder_input\fR, \fBicon_set\fR, \fBpalette_mru\fR, \fBpalette_mru_limit\fR, \fBgit_pager\fR, \fBgit_pager_args\fR, \fBgit_pager_interactive\fR, \fBgit_pager_command_mode\fR, \fBpager\fR, \fBeditor\fR, \fBmax_untracked_diffs\fR, \fBmax_diff_chars\fR, \fBrefresh_interval_seconds\fR, \fBtrust_mode\fR, \fBmerge_method\fR, \fBbranch_name_script\fR, \fBworktree_note_script\fR, \fBworktree_notes_path\fR, \fBworktree_note_type\fR, \fBissue_branch_name_template\fR, \fBpr_branch_name_template\fR, \fBsession_prefix\fR, \fBinit_commands\fR, \fBterminate_commands\fR.
+Supported keys: \fBtheme\fR, \fBworktree_dir\fR, \fBsort_mode\fR, \fBauto_refresh\fR, \fBdisable_pr\fR, \fBsearch_auto_select\fR, \fBfuzzy_finder_input\fR, \fBicon_set\fR, \fBpalette_mru\fR, \fBpalette_mru_limit\fR, \fBgit_pager\fR, \fBgit_pager_args\fR, \fBgit_pager_interactive\fR, \fBgit_pager_command_mode\fR, \fBpager\fR, \fBeditor\fR, \fBcommit.auto_generate_command\fR, \fBmax_untracked_diffs\fR, \fBmax_diff_chars\fR, \fBrefresh_interval_seconds\fR, \fBtrust_mode\fR, \fBmerge_method\fR, \fBbranch_name_script\fR, \fBworktree_note_script\fR, \fBworktree_notes_path\fR, \fBworktree_note_type\fR, \fBissue_branch_name_template\fR, \fBpr_branch_name_template\fR, \fBsession_prefix\fR, \fBinit_commands\fR, \fBterminate_commands\fR.
 .br
 Examples: \fB--config=lw.theme=nord\fR, \fB--config=lw.sort_mode=active\fR
 .br
@@ -645,7 +645,7 @@ Open selected file in editor.
 .
 .TP
 .B c
-Commit staged changes.
+Commit staged changes. Press \fBCtrl+G\fR from anywhere, or \fBc\fR in the status pane, to open the commit screen. The commit screen keeps the subject on its own line, the body beneath it, Enter moves from subject to body, Ctrl+S saves, Ctrl+O auto-generates, and Ctrl+X opens the draft in the configured external editor when available.
 .
 .TP
 .B C
@@ -796,7 +796,7 @@ Open PR/MR in browser (or root repository in editor if main branch with merged/c
 .SS Command Palette
 .TP
 .B ctrl+p, :
-Open command palette showing all available commands (e.g. select theme).
+Open command palette showing all available commands (e.g. select theme or open the commit screen).
 
 The palette exposes a "Create from current" entry which copies the branch you currently occupy. When uncommitted files exist, the prompt shows an "Include current file changes" checkbox; Tab/Shift+Tab focuses it and Space toggles it. When selected, the diff is passed to any configured `branch_name_script` for naming suggestions.
 

@@ -36,6 +36,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, "Zellij", cfg.CustomCommands["Z"].Description)
 	assert.Empty(t, cfg.BranchNameScript)
 	assert.Equal(t, "issue-{number}-{title}", cfg.IssueBranchNameTemplate)
+	assert.Empty(t, cfg.Commit.AutoGenerateCommand)
 	assert.Empty(t, cfg.WorktreeNoteScript)
 	assert.Empty(t, cfg.WorktreeNotesPath)
 	assert.Equal(t, "pr-{number}-{title}", cfg.PRBranchNameTemplate)
@@ -913,6 +914,28 @@ func TestParseConfig(t *testing.T) {
 			},
 			validate: func(t *testing.T, cfg *AppConfig) {
 				assert.Equal(t, "echo note", cfg.WorktreeNoteScript)
+			},
+		},
+		{
+			name: "commit auto_generate_command",
+			data: map[string]interface{}{
+				"commit": map[string]interface{}{
+					"auto_generate_command": "echo commit",
+				},
+			},
+			validate: func(t *testing.T, cfg *AppConfig) {
+				assert.Equal(t, "echo commit", cfg.Commit.AutoGenerateCommand)
+			},
+		},
+		{
+			name: "commit auto_generate_command with spaces is trimmed",
+			data: map[string]interface{}{
+				"commit": map[string]interface{}{
+					"auto_generate_command": "   echo commit   ",
+				},
+			},
+			validate: func(t *testing.T, cfg *AppConfig) {
+				assert.Equal(t, "echo commit", cfg.Commit.AutoGenerateCommand)
 			},
 		},
 		{
@@ -2178,6 +2201,7 @@ func TestApplyCLIOverrides(t *testing.T) {
 		"lw.auto_fetch_prs=true",
 		"lw.disable_pr=true",
 		"lw.max_diff_chars=500000",
+		"lw.commit.auto_generate_command=printf generated",
 		"lw.worktree_note_script=echo note",
 		"lw.worktree_notes_path=/tmp/lazyworktree-notes.json",
 		"lw.pr_branch_name_template=review-{number}-{generated}",
@@ -2190,9 +2214,24 @@ func TestApplyCLIOverrides(t *testing.T) {
 	assert.True(t, cfg.AutoFetchPRs)
 	assert.True(t, cfg.DisablePR)
 	assert.Equal(t, 500000, cfg.MaxDiffChars)
+	assert.Equal(t, "printf generated", cfg.Commit.AutoGenerateCommand)
 	assert.Equal(t, "echo note", cfg.WorktreeNoteScript)
 	assert.Equal(t, "/tmp/lazyworktree-notes.json", cfg.WorktreeNotesPath)
 	assert.Equal(t, "review-{number}-{generated}", cfg.PRBranchNameTemplate)
+}
+
+func TestLoadConfigReadsCommitAutoGenerateCommandFromYAML(t *testing.T) {
+	tempDir := t.TempDir()
+	yamlPath := filepath.Join(tempDir, "config.yaml")
+	yamlContent := "theme: dracula\ncommit:\n  auto_generate_command: \"echo generated\"\n"
+
+	err := os.WriteFile(yamlPath, []byte(yamlContent), 0o600)
+	require.NoError(t, err)
+
+	cfg, err := LoadConfig(yamlPath)
+	require.NoError(t, err)
+
+	assert.Equal(t, "echo generated", cfg.Commit.AutoGenerateCommand)
 }
 
 func TestApplyCLIOverridesMultiValue(t *testing.T) {

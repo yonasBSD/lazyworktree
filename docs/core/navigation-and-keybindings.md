@@ -68,6 +68,9 @@ Press `=` to toggle zoom for the focused pane, expanding it to fill the entire s
 - `e` — open file in editor
 - `s` — stage/unstage files or directories
 - `d` — show full diff in pager
+- `c` — open the commit screen from the Git Status pane for staged changes
+- `Ctrl+g` — open the commit screen from anywhere; the screen uses a dedicated subject field, `Tab` switches to the body, `Ctrl+o` auto-generates from the staged diff, and `Ctrl+x` opens the draft in the configured editor
+- `C` — stage all changes and commit with the git editor
 - `Ctrl+←` / `Ctrl+→` — jump between folders
 
 ### Commit Pane

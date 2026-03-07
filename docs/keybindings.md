@@ -138,7 +138,8 @@ Displays changed files in a collapsible tree view grouped by directory.
 | `d` | Show full diff of all files in pager |
 | `s` | Stage/unstage selected file or directory |
 | `D` | Delete selected file or directory (with confirmation) |
-| `c` | Commit staged changes |
+| `c` | Open the commit screen for staged changes from the Git Status pane |
+| `Ctrl+G` | Open the commit screen from anywhere (subject + body screen; `Ctrl+X` opens external editor when configured) |
 | `C` | Stage all changes and commit |
 | `g` | Open LazyGit |
 | `ctrl+←`, `ctrl+→` | Jump to previous/next folder |
@@ -146,6 +147,8 @@ Displays changed files in a collapsible tree view grouped by directory.
 | `ctrl+d`, `Space` | Half page down |
 | `ctrl+u` | Half page up |
 | `PageUp`, `PageDown` | Half page up/down |
+
+Commit screen controls: `Tab`, `Enter`, `Ctrl+S`, `Ctrl+O`, `Ctrl+X`, `Esc`.
 
 ## Filter and Search Modes
 

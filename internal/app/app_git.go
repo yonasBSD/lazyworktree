@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -14,6 +15,7 @@ import (
 	log "github.com/chmouel/lazyworktree/internal/log"
 	"github.com/chmouel/lazyworktree/internal/models"
 	"github.com/chmouel/lazyworktree/internal/security"
+	"github.com/google/shlex"
 )
 
 const maxPRFetchWorkers = 8
@@ -215,34 +217,14 @@ func (m *Model) deleteFilesCmd(wt *models.WorktreeInfo, files []*StatusFile) fun
 }
 
 func (m *Model) commitAllChanges() tea.Cmd {
-	if m.state.data.selectedIndex < 0 || m.state.data.selectedIndex >= len(m.state.data.filteredWts) {
-		return nil
-	}
-	wt := m.state.data.filteredWts[m.state.data.selectedIndex]
-
-	env := m.buildCommandEnv(wt.Branch, wt.Path)
-	envVars := os.Environ()
-	for k, v := range env {
-		envVars = append(envVars, fmt.Sprintf("%s=%s", k, v))
-	}
-
-	// Clear cache so status pane refreshes with latest git status
-	m.deleteDetailsCache(wt.Path)
-
-	// #nosec G204 -- command is a fixed git command
-	c := m.commandRunner(m.ctx, "bash", "-c", "git add -A && git commit")
-	c.Dir = wt.Path
-	c.Env = envVars
-
-	return m.execProcess(c, func(err error) tea.Msg {
-		if err != nil {
-			return errMsg{err: err}
-		}
-		return refreshCompleteMsg{}
-	})
+	return m.commitAction(true)
 }
 
 func (m *Model) commitStagedChanges() tea.Cmd {
+	return m.commitAction(false)
+}
+
+func (m *Model) commitAction(useEditor bool) tea.Cmd {
 	if m.state.data.selectedIndex < 0 || m.state.data.selectedIndex >= len(m.state.data.filteredWts) {
 		return nil
 	}
@@ -261,7 +243,166 @@ func (m *Model) commitStagedChanges() tea.Cmd {
 	}
 
 	if !hasStagedChanges {
-		m.showInfo("No staged changes to commit", nil)
+		// No staged changes -> prompt to commit ALL
+		confirmScreen := screen.NewConfirmScreen("No staged files to commit. Stage all files and commit?", m.theme)
+		confirmScreen.OnConfirm = func() tea.Cmd {
+			m.state.ui.screenManager.Pop()
+			return m.performCommit(wt, true, useEditor)
+		}
+		confirmScreen.OnCancel = func() tea.Cmd {
+			m.state.ui.screenManager.Pop()
+			return nil
+		}
+		m.state.ui.screenManager.Push(confirmScreen)
+		return nil
+	}
+
+	return m.performCommit(wt, false, useEditor)
+}
+
+func (m *Model) performCommit(wt *models.WorktreeInfo, stageAll, useEditor bool) tea.Cmd {
+	env := m.buildCommandEnv(wt.Branch, wt.Path)
+	envVars := os.Environ()
+	for k, v := range env {
+		envVars = append(envVars, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	if stageAll {
+		// Stage all changes before committing
+		c := m.commandRunner(m.ctx, "bash", "-c", "git add -A")
+		c.Dir = wt.Path
+		c.Env = envVars
+		if err := c.Run(); err != nil {
+			return func() tea.Msg { return errMsg{err: err} }
+		}
+	}
+
+	// Clear cache so status pane refreshes with latest git status
+	m.deleteDetailsCache(wt.Path)
+
+	if useEditor {
+		// #nosec G204 -- command is a fixed git command
+		c := m.commandRunner(m.ctx, "bash", "-c", "git commit")
+		c.Dir = wt.Path
+		c.Env = envVars
+
+		return m.execProcess(c, func(err error) tea.Msg {
+			if err != nil {
+				return errMsg{err: err}
+			}
+			return refreshCompleteMsg{}
+		})
+	}
+
+	// Use Modal (CommitMessageScreen)
+	hasAutoGenerate := m.config.Commit.AutoGenerateCommand != ""
+
+	commitScreen := screen.NewCommitMessageScreen(
+		"Commit Message",
+		"Enter your commit message...",
+		"",
+		m.state.view.WindowWidth,
+		m.state.view.WindowHeight,
+		m.theme,
+		m.config.IconSet != "text",
+		hasAutoGenerate,
+	)
+
+	commitScreen.OnCancel = func() tea.Cmd {
+		m.state.ui.screenManager.Pop()
+		return nil
+	}
+
+	commitScreen.OnSubmit = func(value string) tea.Cmd {
+		m.state.ui.screenManager.Pop()
+
+		// Write the commit message to a temporary file and run git commit -F
+		f, err := os.CreateTemp("", "lazyworktree-commit-*.txt")
+		if err != nil {
+			return func() tea.Msg { return errMsg{err: err} }
+		}
+		tmpFileName := f.Name()
+
+		if _, err := f.WriteString(value); err != nil {
+			_ = f.Close()
+			_ = os.Remove(tmpFileName)
+			return func() tea.Msg { return errMsg{err: err} }
+		}
+		if err := f.Close(); err != nil {
+			_ = os.Remove(tmpFileName)
+			return func() tea.Msg { return errMsg{err: err} }
+		}
+
+		c := m.commandRunner(m.ctx, "bash", "-c", fmt.Sprintf("git commit --cleanup=strip -F %s", shellQuote(tmpFileName)))
+		c.Dir = wt.Path
+		c.Env = envVars
+
+		return m.execProcess(c, func(err error) tea.Msg {
+			cleanupErr := os.Remove(tmpFileName)
+			if cleanupErr != nil && !errors.Is(cleanupErr, os.ErrNotExist) {
+				if err != nil {
+					return errMsg{err: errors.Join(err, cleanupErr)}
+				}
+				return errMsg{err: cleanupErr}
+			}
+			if err != nil {
+				return errMsg{err: err}
+			}
+			return refreshCompleteMsg{}
+		})
+	}
+
+	commitScreen.OnAutoGenerate = func() tea.Cmd {
+		// Run auto generate command in background
+		cmdStr := m.config.Commit.AutoGenerateCommand
+		if cmdStr == "" {
+			return nil
+		}
+		cmdArgs, err := splitAutoGenerateCommand(cmdStr)
+		if err != nil {
+			return func() tea.Msg { return errMsg{err: err} }
+		}
+
+		return func() tea.Msg {
+			diffCmd := m.commandRunner(m.ctx, "git", "diff", "--staged")
+			diffCmd.Dir = wt.Path
+			diffCmd.Env = envVars
+
+			diffOutput, err := diffCmd.CombinedOutput()
+			if err != nil {
+				return errMsg{err: fmt.Errorf("auto-generate failed to read staged diff: %v\nOutput: %s", err, string(diffOutput))}
+			}
+
+			generateCmd := m.commandRunner(m.ctx, cmdArgs[0], cmdArgs[1:]...)
+			generateCmd.Dir = wt.Path
+			generateCmd.Env = envVars
+			generateCmd.Stdin = bytes.NewReader(diffOutput)
+
+			output, err := generateCmd.CombinedOutput()
+			if err != nil {
+				return errMsg{err: fmt.Errorf("auto-generate failed: %v\nOutput: %s", err, string(output))}
+			}
+
+			// We need to dispatch a message that the text area should be updated.
+			// Since we don't have a direct way to update the screen from a background routine
+			// without defining a new message type, we can create one.
+			return autoGenerateResultMsg{result: string(output)}
+		}
+	}
+	if strings.TrimSpace(m.editorCommand()) != "" {
+		commitScreen.OnEditExternal = func(currentValue string) tea.Cmd {
+			return m.openCommitInExternalEditor(wt, currentValue)
+		}
+	}
+
+	m.state.ui.screenManager.Push(commitScreen)
+	return nil
+}
+
+func (m *Model) openCommitInExternalEditor(wt *models.WorktreeInfo, commitText string) tea.Cmd {
+	editor := m.editorCommand()
+	if strings.TrimSpace(editor) == "" {
+		m.showInfo("No editor configured. Set editor in config or $EDITOR.", nil)
 		return nil
 	}
 
@@ -271,20 +412,56 @@ func (m *Model) commitStagedChanges() tea.Cmd {
 		envVars = append(envVars, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	// Clear cache so status pane refreshes with latest git status
-	m.deleteDetailsCache(wt.Path)
+	tmpPath := filepath.Join(os.TempDir(), "COMMIT_EDITMSG")
+	// #nosec G304 -- tmpPath is derived from os.TempDir with a fixed file name
+	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+	if err != nil {
+		return func() tea.Msg { return errMsg{err: err} }
+	}
+	if _, err := tmpFile.WriteString(commitText); err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+		return func() tea.Msg { return errMsg{err: err} }
+	}
+	if err := tmpFile.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return func() tea.Msg { return errMsg{err: err} }
+	}
 
-	// #nosec G204 -- command is a fixed git command
-	c := m.commandRunner(m.ctx, "bash", "-c", "git commit")
+	cmdStr := fmt.Sprintf("%s %s", editor, shellQuote(tmpPath))
+	// #nosec G204 -- command is constructed from user config and a temp path
+	c := m.commandRunner(m.ctx, "bash", "-c", cmdStr)
 	c.Dir = wt.Path
 	c.Env = envVars
 
 	return m.execProcess(c, func(err error) tea.Msg {
+		defer func() { _ = os.Remove(tmpPath) }()
 		if err != nil {
 			return errMsg{err: err}
 		}
-		return refreshCompleteMsg{}
+		// #nosec G304 -- tmpPath is created by os.CreateTemp above, not user-controlled
+		content, readErr := os.ReadFile(tmpPath)
+		if readErr != nil {
+			return errMsg{err: readErr}
+		}
+		return commitExternalEditorResultMsg{result: string(content)}
 	})
+}
+
+func splitAutoGenerateCommand(raw string) ([]string, error) {
+	parts, err := shlex.Split(raw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid commit.auto_generate_command: %w", err)
+	}
+	if len(parts) == 0 {
+		return nil, errors.New("invalid commit.auto_generate_command: empty command")
+	}
+	return parts, nil
+}
+
+// autoGenerateResultMsg is sent when auto-generation completes
+type autoGenerateResultMsg struct {
+	result string
 }
 
 func (m *Model) stageCurrentFile(sf StatusFile) tea.Cmd {

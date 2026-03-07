@@ -42,6 +42,7 @@ const (
 	TypeCommitFiles
 	TypeChecklist
 	TypeTaskboard
+	TypeCommitMessage
 )
 
 // String returns a human-readable name for the screen type.
@@ -85,6 +86,8 @@ func (t Type) String() string {
 		return "checklist"
 	case TypeTaskboard:
 		return "taskboard"
+	case TypeCommitMessage:
+		return "commit-message"
 	default:
 		return "unknown"
 	}

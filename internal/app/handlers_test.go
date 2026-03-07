@@ -1121,6 +1121,11 @@ func TestCommitAllChangesFromStatusPane(t *testing.T) {
 	}
 	m.state.data.selectedIndex = 0
 
+	// Add a staged file to skip the confirmation prompt
+	m.state.data.statusFilesAll = []StatusFile{
+		{Filename: "staged.txt", Status: "M "},
+	}
+
 	var gotCmd *exec.Cmd
 	m.execProcess = func(cmd *exec.Cmd, cb tea.ExecCallback) tea.Cmd {
 		gotCmd = cmd
@@ -1142,8 +1147,8 @@ func TestCommitAllChangesFromStatusPane(t *testing.T) {
 	if len(gotCmd.Args) < 3 || gotCmd.Args[0] != testBashCmd || gotCmd.Args[1] != "-c" {
 		t.Fatalf("expected bash -c command, got %v", gotCmd.Args)
 	}
-	if !strings.Contains(gotCmd.Args[2], "git add -A") || !strings.Contains(gotCmd.Args[2], "git commit") {
-		t.Fatalf("expected git add -A && git commit command, got %q", gotCmd.Args[2])
+	if !strings.Contains(gotCmd.Args[2], "git commit") {
+		t.Fatalf("expected git commit command, got %q", gotCmd.Args[2])
 	}
 }
 
@@ -1183,33 +1188,80 @@ func TestCommitStagedChangesFromStatusPane(t *testing.T) {
 		{Filename: "file1.go", Status: "M ", IsUntracked: false}, // Staged modification
 	})
 
-	var gotCmd *exec.Cmd
 	m.execProcess = func(cmd *exec.Cmd, cb tea.ExecCallback) tea.Cmd {
-		gotCmd = cmd
 		return func() tea.Msg { return cb(nil) }
 	}
 
 	_, cmd := m.handleBuiltInKey(tea.KeyPressMsg{Code: 'c', Text: string('c')})
-	if cmd == nil {
-		t.Fatal("expected command to be returned")
+	if cmd != nil {
+		t.Fatal("expected nil command because modal screen should be shown")
 	}
-	_ = cmd()
 
-	if gotCmd == nil {
-		t.Fatal("expected execProcess to be called")
+	// Verify CommitMessageScreen was pushed
+	if m.state.ui.screenManager.Type() != appscreen.TypeCommitMessage {
+		t.Fatalf("expected CommitMessageScreen to be pushed, got %s", m.state.ui.screenManager.Type())
 	}
-	if gotCmd.Dir != wtPath {
-		t.Fatalf("expected worktree dir %q, got %q", wtPath, gotCmd.Dir)
+}
+
+func TestCtrlGOpensCommitScreenFromStatusPane(t *testing.T) {
+	cfg := &config.AppConfig{
+		WorktreeDir: t.TempDir(),
 	}
-	if len(gotCmd.Args) < 3 || gotCmd.Args[0] != testBashCmd || gotCmd.Args[1] != "-c" {
-		t.Fatalf("expected bash -c command, got %v", gotCmd.Args)
+	m := NewModel(cfg, "")
+	m.state.view.FocusedPane = 2
+	m.state.ui.statusViewport = viewport.New(viewport.WithWidth(40), viewport.WithHeight(10))
+
+	wtPath := filepath.Join(cfg.WorktreeDir, "wt1")
+	if err := os.MkdirAll(wtPath, 0o700); err != nil {
+		t.Fatalf("failed to create worktree dir: %v", err)
 	}
-	// Should only run git commit (not git add -A)
-	if !strings.Contains(gotCmd.Args[2], "git commit") {
-		t.Fatalf("expected git commit command, got %q", gotCmd.Args[2])
+
+	m.state.data.filteredWts = []*models.WorktreeInfo{
+		{Path: wtPath, Branch: "feature"},
 	}
-	if strings.Contains(gotCmd.Args[2], "git add -A") {
-		t.Fatalf("expected no git add -A in command, got %q", gotCmd.Args[2])
+	m.state.data.selectedIndex = 0
+	m.setStatusFiles([]StatusFile{
+		{Filename: "file1.go", Status: "M ", IsUntracked: false},
+	})
+
+	_, cmd := m.handleBuiltInKey(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
+	if cmd != nil {
+		t.Fatal("expected nil command because modal screen should be shown")
+	}
+
+	if m.state.ui.screenManager.Type() != appscreen.TypeCommitMessage {
+		t.Fatalf("expected CommitMessageScreen to be pushed, got %s", m.state.ui.screenManager.Type())
+	}
+}
+
+func TestCtrlGOpensCommitScreenOutsideStatusPane(t *testing.T) {
+	cfg := &config.AppConfig{
+		WorktreeDir: t.TempDir(),
+	}
+	m := NewModel(cfg, "")
+	m.state.view.FocusedPane = 0
+	m.state.ui.statusViewport = viewport.New(viewport.WithWidth(40), viewport.WithHeight(10))
+
+	wtPath := filepath.Join(cfg.WorktreeDir, "wt1")
+	if err := os.MkdirAll(wtPath, 0o700); err != nil {
+		t.Fatalf("failed to create worktree dir: %v", err)
+	}
+
+	m.state.data.filteredWts = []*models.WorktreeInfo{
+		{Path: wtPath, Branch: "feature"},
+	}
+	m.state.data.selectedIndex = 0
+	m.setStatusFiles([]StatusFile{
+		{Filename: "file1.go", Status: "M ", IsUntracked: false},
+	})
+
+	_, cmd := m.handleBuiltInKey(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
+	if cmd != nil {
+		t.Fatal("expected nil command because modal screen should be shown")
+	}
+
+	if m.state.ui.screenManager.Type() != appscreen.TypeCommitMessage {
+		t.Fatalf("expected CommitMessageScreen to be pushed, got %s", m.state.ui.screenManager.Type())
 	}
 }
 
@@ -1241,9 +1293,9 @@ func TestCommitStagedChangesNoStagedFiles(t *testing.T) {
 		t.Fatal("expected no command when no staged changes")
 	}
 
-	// Should show info screen with message
-	if !m.state.ui.screenManager.IsActive() || m.state.ui.screenManager.Type() != appscreen.TypeInfo {
-		t.Fatalf("expected info screen, got active=%v type=%v", m.state.ui.screenManager.IsActive(), m.state.ui.screenManager.Type())
+	// Should show confirm screen with message
+	if !m.state.ui.screenManager.IsActive() || m.state.ui.screenManager.Type() != appscreen.TypeConfirm {
+		t.Fatalf("expected confirm screen, got active=%t type=%s", m.state.ui.screenManager.IsActive(), m.state.ui.screenManager.Type())
 	}
 }
 

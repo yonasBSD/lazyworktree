@@ -34,3 +34,10 @@ CI script environment variables:
 
 - `editor`: command used for status-pane edit actions
 - defaults to `$EDITOR`, fallback to `nvim`
+
+## Commit Message Generation
+
+- `commit.auto_generate_command`: command run by `Ctrl+O` in the commit screen
+- receives the staged diff on stdin
+- first output line becomes the subject
+- third line onwards become the body

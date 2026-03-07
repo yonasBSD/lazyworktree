@@ -86,8 +86,8 @@ func NewHelpScreen(maxWidth, maxHeight int, customCommands map[string]*config.Cu
 - d: Show full diff (all files) in pager
 - s: Stage/unstage selected file or directory
 - D: Delete selected file or directory (with confirmation)
-- c: Commit staged changes
-- C: Stage all changes and commit
+- c: Commit changes (subject + body screen; Ctrl+X opens external editor when configured)
+- C: Commit changes using git editor
 - Ctrl+{{ARROW_LEFT}} / {{ARROW_RIGHT}}: Jump to previous / next folder
 - f: Filter files
 - /: Search file or directory names
@@ -156,6 +156,8 @@ Supported: Letters (a-z, A-Z), numbers (0-9), and hyphens (-). See help for full
 - y: Copy to clipboard (context-aware: path in worktrees pane, file path in status pane, SHA in log pane; uses OSC52, works over SSH)
 - Y: Copy selected worktree branch name to clipboard
 - : / Ctrl+P: Command Palette
+- Command palette: Open commit screen (for staged changes, or prompt to stage all)
+- Commit screen: Ctrl+G opens it from anywhere, and c opens it from the status pane; subject stays on the first line, body below; Tab switches field, Enter moves from subject to body, Ctrl+S saves, Ctrl+O auto-generates, Ctrl+X opens the external editor when configured
 - Custom commands prefixed with _: appear in the command palette only
 - ?: Show this help
 

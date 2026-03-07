@@ -30,6 +30,7 @@ This page is generated from `internal/config/config.go`. Run `make docs-sync` af
 | `pager` | `string` | `none` | Pager for command output views. |
 | `ci_script_pager` | `string` | `none` | Dedicated pager for CI logs. |
 | `editor` | `string` | `none` | Editor used in file open actions. |
+| `commit.auto_generate_command` | `string` | `none` | Command used by Ctrl+O in the commit screen to generate a message from the staged diff. |
 | `merge_method` | `enum(rebase\|merge)` | `rebase` | Absorb strategy for integrating a worktree. |
 | `trust_mode` | `enum(tofu\|never\|always)` | `tofu` | Trust policy for repository `.wt` commands. |
 | `branch_name_script` | `string` | `none` | Script to generate branch naming suggestions. |

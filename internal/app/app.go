@@ -221,6 +221,9 @@ type (
 	openNoteExternalEditorResultMsg struct {
 		worktreePath string
 	}
+	commitExternalEditorResultMsg struct {
+		result string
+	}
 )
 
 type commitLogEntry struct {
@@ -634,6 +637,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		m.debugf("key: %s screen=%s focus=%d filter=%t", msg.String(), m.state.ui.screenManager.Type().String(), m.state.view.FocusedPane, m.state.view.ShowingFilter)
+		if handledModel, handledCmd, handled := m.handleGlobalKey(msg); handled {
+			return handledModel, handledCmd
+		}
 		if m.state.ui.screenManager.IsActive() {
 			return m.handleScreenKey(msg)
 		}
@@ -647,6 +653,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case openIssuesLoadedMsg:
 		return m, m.handleOpenIssuesLoaded(msg)
+
+	case autoGenerateResultMsg:
+		if scr, ok := m.state.ui.screenManager.Current().(*screen.CommitMessageScreen); ok {
+			scr.SetGeneratedValue(msg.result)
+		} else {
+			m.statusContent = "Auto-generated commit message is ready, but the commit screen is no longer active."
+			m.debugf("auto-generate completed while commit screen was not active")
+		}
+		return m, nil
+
+	case commitExternalEditorResultMsg:
+		if scr, ok := m.state.ui.screenManager.Current().(*screen.CommitMessageScreen); ok {
+			scr.SetValue(msg.result)
+		} else {
+			m.statusContent = "Edited commit draft is ready, but the commit screen is no longer active."
+			m.debugf("commit editor completed while commit screen was not active")
+		}
+		return m, nil
 
 	case worktreeDeletedMsg:
 		if msg.err != nil {

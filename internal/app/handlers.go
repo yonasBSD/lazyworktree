@@ -91,6 +91,18 @@ func (m *Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m.handleBuiltInKey(msg)
 }
 
+func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
+	switch msg.String() {
+	case "ctrl+g":
+		if m.state.ui.screenManager.Type() == appscreen.TypeCommitMessage {
+			return m, nil, true
+		}
+		return m, m.commitStagedChanges(), true
+	default:
+		return m, nil, false
+	}
+}
+
 func (m *Model) handleSearchInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	keyStr := msg.String()
 	if keyStr == keyEnter {
@@ -544,6 +556,9 @@ func (m *Model) handleBuiltInKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, m.commitStagedChanges()
 		}
 		return m, m.showCreateWorktree()
+
+	case "ctrl+g":
+		return m, m.commitStagedChanges()
 
 	case "D":
 		if m.state.view.FocusedPane == 2 {

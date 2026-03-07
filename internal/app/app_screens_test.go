@@ -2,12 +2,14 @@ package app
 
 import (
 	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
 	appscreen "github.com/chmouel/lazyworktree/internal/app/screen"
@@ -421,6 +423,82 @@ func TestShowCommandPaletteHasAllActions(t *testing.T) {
 		if !itemIDs[expectedID] {
 			t.Errorf("expected palette item %q not found", expectedID)
 		}
+	}
+}
+
+func TestShowCommandPaletteCommitEntryOpensCommitScreen(t *testing.T) {
+	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
+	m := NewModel(cfg, "")
+	m.setWindowSize(120, 40)
+
+	wtPath := filepath.Join(cfg.WorktreeDir, "wt1")
+	if err := os.MkdirAll(wtPath, 0o700); err != nil {
+		t.Fatalf("failed to create worktree dir: %v", err)
+	}
+	m.state.data.filteredWts = []*models.WorktreeInfo{{Path: wtPath, Branch: "feature"}}
+	m.state.data.selectedIndex = 0
+	m.setStatusFiles([]StatusFile{{Filename: "file1.go", Status: "M ", IsUntracked: false}})
+
+	if cmd := m.showCommandPalette(); cmd == nil {
+		t.Fatal("showCommandPalette returned nil command")
+	}
+	if !m.state.ui.screenManager.IsActive() || m.state.ui.screenManager.Type() != appscreen.TypePalette {
+		t.Fatal("expected command palette screen")
+	}
+
+	paletteScreen := m.state.ui.screenManager.Current().(*appscreen.CommandPaletteScreen)
+	commitIndex := -1
+	for i, item := range paletteScreen.Items {
+		if item.ID == "commit-staged" {
+			commitIndex = i
+			if item.Label != "Open commit screen" {
+				t.Fatalf("expected commit palette label %q, got %q", "Open commit screen", item.Label)
+			}
+			break
+		}
+	}
+	if commitIndex < 0 {
+		t.Fatal("commit-staged palette item not found")
+	}
+
+	paletteScreen.Cursor = commitIndex
+	_, cmd := m.handleScreenKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd != nil {
+		_ = cmd()
+	}
+
+	if !m.state.ui.screenManager.IsActive() || m.state.ui.screenManager.Type() != appscreen.TypeCommitMessage {
+		t.Fatalf("expected commit message screen after palette selection, got active=%v type=%v", m.state.ui.screenManager.IsActive(), m.state.ui.screenManager.Type())
+	}
+}
+
+func TestCtrlGOpensCommitScreenOverActiveModal(t *testing.T) {
+	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
+	m := NewModel(cfg, "")
+	m.state.view.FocusedPane = 0
+	m.state.ui.statusViewport = viewport.New(viewport.WithWidth(40), viewport.WithHeight(10))
+
+	wtPath := filepath.Join(cfg.WorktreeDir, "wt1")
+	if err := os.MkdirAll(wtPath, 0o700); err != nil {
+		t.Fatalf("failed to create worktree dir: %v", err)
+	}
+	m.state.data.filteredWts = []*models.WorktreeInfo{{Path: wtPath, Branch: "feature"}}
+	m.state.data.selectedIndex = 0
+	m.setStatusFiles([]StatusFile{{Filename: "file1.go", Status: "M ", IsUntracked: false}})
+
+	m.state.ui.screenManager.Push(appscreen.NewInfoScreen("hello", m.theme))
+
+	model, cmd := m.Update(tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
+	if cmd != nil {
+		t.Fatal("expected nil command because commit screen should be shown immediately")
+	}
+
+	updated, ok := model.(*Model)
+	if !ok {
+		t.Fatalf("expected *Model, got %T", model)
+	}
+	if updated.state.ui.screenManager.Type() != appscreen.TypeCommitMessage {
+		t.Fatalf("expected commit screen on top, got %s", updated.state.ui.screenManager.Type())
 	}
 }
 
