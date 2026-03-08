@@ -281,20 +281,19 @@ func (s *IssueSelectionScreen) applyFilter() {
 	if query == "" {
 		s.Filtered = s.Issues
 	} else {
-		s.Filtered = []*models.IssueInfo{}
-		for _, issue := range s.Issues {
-			issueNumStr := fmt.Sprintf("%d", issue.Number)
-			titleLower := strings.ToLower(issue.Title)
-			if strings.Contains(issueNumStr, query) || strings.Contains(titleLower, query) {
-				s.Filtered = append(s.Filtered, issue)
-			}
-		}
+		s.Filtered = filterAndRank(s.Issues, query, func(issue *models.IssueInfo) []string {
+			return []string{fmt.Sprintf("%d", issue.Number), issue.Title}
+		})
 	}
 
-	if s.Cursor >= len(s.Filtered) {
+	switch {
+	case len(s.Filtered) == 0:
+		s.Cursor = -1
+	case query != "":
+		s.Cursor = 0
+	case s.Cursor >= len(s.Filtered):
 		s.Cursor = max(0, len(s.Filtered)-1)
-	}
-	if s.Cursor < 0 && len(s.Filtered) > 0 {
+	case s.Cursor < 0:
 		s.Cursor = 0
 	}
 	s.ScrollOffset = 0

@@ -99,6 +99,50 @@ func TestTaskboardScreenFilter(t *testing.T) {
 	}
 }
 
+func TestTaskboardScreenRanksBestSectionFirst(t *testing.T) {
+	items := []TaskboardItem{
+		{
+			IsSection:    true,
+			WorktreePath: "/tmp/wt-a",
+			SectionLabel: "wt-a",
+		},
+		{
+			ID:           "task-a",
+			WorktreePath: "/tmp/wt-a",
+			WorktreeName: "wt-a",
+			Text:         "Open browser page",
+		},
+		{
+			IsSection:    true,
+			WorktreePath: "/tmp/wt-b",
+			SectionLabel: "wt-b",
+		},
+		{
+			ID:           "task-b",
+			WorktreePath: "/tmp/wt-b",
+			WorktreeName: "wt-b",
+			Text:         "Browse worktree files",
+		},
+	}
+
+	s := NewTaskboardScreen(items, "Taskboard", 120, 40, theme.Dracula())
+	s.FilterInput.SetValue("browse")
+	s.applyFilter()
+
+	if len(s.Filtered) != 4 {
+		t.Fatalf("expected two sections and two tasks, got %d items", len(s.Filtered))
+	}
+	if s.Filtered[0].SectionLabel != "wt-b" {
+		t.Fatalf("expected best matching section first, got %q", s.Filtered[0].SectionLabel)
+	}
+	if s.Filtered[1].ID != "task-b" {
+		t.Fatalf("expected best matching task first, got %q", s.Filtered[1].ID)
+	}
+	if s.Cursor != 1 {
+		t.Fatalf("expected cursor to reset to first selectable ranked task, got %d", s.Cursor)
+	}
+}
+
 func TestTaskboardScreenToggleCallbackAndState(t *testing.T) {
 	s := NewTaskboardScreen(testTaskboardItems(), "Taskboard", 120, 40, theme.Dracula())
 	called := false

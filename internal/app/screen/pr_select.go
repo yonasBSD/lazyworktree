@@ -376,22 +376,19 @@ func (s *PRSelectionScreen) applyFilter() {
 	if query == "" {
 		s.Filtered = s.PRs
 	} else {
-		s.Filtered = []*models.PRInfo{}
-		for _, pr := range s.PRs {
-			// Match by number or title
-			prNumStr := fmt.Sprintf("%d", pr.Number)
-			titleLower := strings.ToLower(pr.Title)
-			if strings.Contains(prNumStr, query) || strings.Contains(titleLower, query) {
-				s.Filtered = append(s.Filtered, pr)
-			}
-		}
+		s.Filtered = filterAndRank(s.PRs, query, func(pr *models.PRInfo) []string {
+			return []string{fmt.Sprintf("%d", pr.Number), pr.Title}
+		})
 	}
 
-	// Reset cursor if needed
-	if s.Cursor >= len(s.Filtered) {
+	switch {
+	case len(s.Filtered) == 0:
+		s.Cursor = -1
+	case query != "":
+		s.Cursor = 0
+	case s.Cursor >= len(s.Filtered):
 		s.Cursor = max(0, len(s.Filtered)-1)
-	}
-	if s.Cursor < 0 && len(s.Filtered) > 0 {
+	case s.Cursor < 0:
 		s.Cursor = 0
 	}
 	s.ScrollOffset = 0

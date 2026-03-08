@@ -2,6 +2,7 @@ package screen
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"charm.land/bubbles/v2/textinput"
@@ -377,29 +378,87 @@ func (s *TaskboardScreen) applyFilter() {
 	if query == "" {
 		s.Filtered = cloneTaskboardItems(s.Items)
 	} else {
-		filtered := make([]TaskboardItem, 0, len(s.Items))
-		var pending TaskboardItem
-		hasPending := false
-		for _, item := range s.Items {
-			if item.IsSection {
-				pending = item
-				hasPending = true
-				continue
-			}
-			haystack := strings.ToLower(item.Text + " " + item.WorktreeName)
-			if !strings.Contains(haystack, query) {
-				continue
-			}
-			if hasPending {
-				filtered = append(filtered, pending)
-				hasPending = false
-			}
-			filtered = append(filtered, item)
+		type rankedTaskboardSection struct {
+			hasHeader bool
+			header    TaskboardItem
+			items     []rankedSelection[TaskboardItem]
+			bestScore int
+			order     int
 		}
+
+		sections := make([]rankedTaskboardSection, 0, len(s.Items))
+		current := rankedTaskboardSection{bestScore: noRankedFilterScore}
+		hasCurrent := false
+		sectionOrder := 0
+		itemOrder := 0
+
+		flush := func() {
+			if !hasCurrent || len(current.items) == 0 {
+				return
+			}
+			sortRankedSelections(current.items)
+			sections = append(sections, current)
+		}
+
+		for i := range s.Items {
+			item := s.Items[i]
+			if item.IsSection {
+				flush()
+				current = rankedTaskboardSection{
+					hasHeader: true,
+					header:    item,
+					bestScore: noRankedFilterScore,
+					order:     sectionOrder,
+				}
+				hasCurrent = true
+				sectionOrder++
+				continue
+			}
+
+			if !hasCurrent {
+				current = rankedTaskboardSection{bestScore: noRankedFilterScore, order: sectionOrder}
+				hasCurrent = true
+				sectionOrder++
+			}
+
+			score, ok := rankedFieldMatchScore(query, item.Text, item.WorktreeName)
+			if !ok {
+				continue
+			}
+			current.items = append(current.items, rankedSelection[TaskboardItem]{
+				item:  item,
+				score: score,
+				order: itemOrder,
+			})
+			itemOrder++
+			if score < current.bestScore {
+				current.bestScore = score
+			}
+		}
+		flush()
+
+		sort.SliceStable(sections, func(i, j int) bool {
+			if sections[i].bestScore != sections[j].bestScore {
+				return sections[i].bestScore < sections[j].bestScore
+			}
+			return sections[i].order < sections[j].order
+		})
+
+		filtered := make([]TaskboardItem, 0, len(s.Items))
+		for i := range sections {
+			section := sections[i]
+			if section.hasHeader {
+				filtered = append(filtered, section.header)
+			}
+			for j := range section.items {
+				filtered = append(filtered, section.items[j].item)
+			}
+		}
+
 		s.Filtered = filtered
 	}
 
-	if s.Cursor >= len(s.Filtered) || s.Cursor < 0 || (len(s.Filtered) > 0 && s.Filtered[s.Cursor].IsSection) {
+	if len(s.Filtered) == 0 || query != "" || s.Cursor < 0 || (len(s.Filtered) > 0 && s.Filtered[s.Cursor].IsSection) || s.Cursor >= len(s.Filtered) {
 		s.Cursor = firstSelectableIndex(s.Filtered)
 	}
 }

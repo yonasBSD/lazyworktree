@@ -86,6 +86,32 @@ func TestPRSelectionScreenFiltering(t *testing.T) {
 	}
 }
 
+func TestPRSelectionScreenRanksNumberAndTitleMatches(t *testing.T) {
+	prs := []*models.PRInfo{
+		{Number: 45, Title: "Open browser page"},
+		{Number: 451, Title: "Browse worktree files"},
+	}
+	scr := NewPRSelectionScreen(prs, 80, 30, theme.Dracula(), true)
+
+	scr.FilterInput.SetValue("45")
+	scr.applyFilter()
+	if len(scr.Filtered) != 2 {
+		t.Fatalf("expected two PR matches, got %d", len(scr.Filtered))
+	}
+	if scr.Filtered[0].Number != 45 {
+		t.Fatalf("expected exact number match first, got #%d", scr.Filtered[0].Number)
+	}
+
+	scr.FilterInput.SetValue("browse")
+	scr.applyFilter()
+	if scr.Filtered[0].Number != 451 {
+		t.Fatalf("expected stronger title match first, got #%d", scr.Filtered[0].Number)
+	}
+	if scr.Cursor != 0 {
+		t.Fatalf("expected cursor to reset to first ranked PR, got %d", scr.Cursor)
+	}
+}
+
 func TestPRSelectionScreenFilterToggle(t *testing.T) {
 	prs := []*models.PRInfo{
 		{Number: 1, Title: "First"},

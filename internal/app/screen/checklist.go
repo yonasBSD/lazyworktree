@@ -237,21 +237,18 @@ func (s *ChecklistScreen) applyFilter() {
 		s.Filtered = make([]ChecklistItem, len(s.Items))
 		copy(s.Filtered, s.Items)
 	} else {
-		s.Filtered = []ChecklistItem{}
-		for _, item := range s.Items {
-			labelLower := strings.ToLower(item.Label)
-			descLower := strings.ToLower(item.Description)
-			idLower := strings.ToLower(item.ID)
-			if strings.Contains(labelLower, query) || strings.Contains(descLower, query) || strings.Contains(idLower, query) {
-				s.Filtered = append(s.Filtered, item)
-			}
-		}
+		s.Filtered = filterAndRank(s.Items, query, func(item ChecklistItem) []string {
+			return []string{item.Label, item.Description, item.ID}
+		})
 	}
 
 	// Reset cursor if needed
-	if len(s.Filtered) == 0 {
+	switch {
+	case len(s.Filtered) == 0:
 		s.Cursor = -1
-	} else if s.Cursor >= len(s.Filtered) || s.Cursor < 0 {
+	case query != "":
+		s.Cursor = 0
+	case s.Cursor >= len(s.Filtered) || s.Cursor < 0:
 		s.Cursor = 0
 	}
 	s.ScrollOffset = 0

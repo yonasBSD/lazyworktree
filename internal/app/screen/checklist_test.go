@@ -51,3 +51,24 @@ func TestChecklistScreenFilterToggle(t *testing.T) {
 		t.Fatalf("expected filter to remain applied after Esc, got %v", scr.Filtered)
 	}
 }
+
+func TestChecklistScreenRanksBetterMatchesFirst(t *testing.T) {
+	items := []ChecklistItem{
+		{ID: "browser", Label: "Open PR", Description: "Open PR in browser"},
+		{ID: "browse", Label: "Browse files", Description: "Inspect files"},
+	}
+
+	scr := NewChecklistScreen(items, "Test", "Filter...", "No items", 80, 30, theme.Dracula())
+	scr.FilterInput.SetValue("browse")
+	scr.applyFilter()
+
+	if len(scr.Filtered) != 2 {
+		t.Fatalf("expected both items to match, got %d", len(scr.Filtered))
+	}
+	if scr.Filtered[0].ID != "browse" {
+		t.Fatalf("expected label match first, got %q", scr.Filtered[0].ID)
+	}
+	if scr.Cursor != 0 {
+		t.Fatalf("expected cursor to reset to first ranked item, got %d", scr.Cursor)
+	}
+}
