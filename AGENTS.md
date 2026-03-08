@@ -1,7 +1,9 @@
 ## Project
 
 A TUI for managing GIT worktrees.
-Read the README.md if you really need to know what this project is all about.
+Read the README.md if you need product or workflow context.
+Read `./docs/development/architecture.md` when working on architecture, cross-cutting flows, or package
+ownership across subsystems.
 
 ## Building
 
@@ -12,7 +14,13 @@ Read the README.md if you really need to know what this project is all about.
   - `make docs-build` and `make docs-serve` for local preview/build.
 - Use `uv`/`uvx` for docs tooling everywhere; do not use `pip` directly.
 - If `uv` is missing locally, install with Homebrew: `brew install uv`.
-- if you ever add a new argument or flag to the cli then make sure to update the completion and README.md
+- If you add or change a CLI command, argument, or flag, update:
+  - shell completion
+  - `README.md`
+  - `lazyworktree.1`
+  - internal help text/template in `internal/app/screen/help.go`
+  - generated CLI docs via `make docs-sync`
+  - relevant website docs
 - Don't ever do commit unless you are being explicitly asked for it.
 - If you get asked to commit then use this rules:
   - Follow Conventional Commits 1.0.0.
@@ -27,7 +35,7 @@ Read the README.md if you really need to know what this project is all about.
 - For any user-facing changes (features, options, keybindings, etc.), ensure you update:
   - `README.md`
   - `lazyworktree.1` man page
-  - Internal help (`NewHelpScreen.helpText`)
+  - Internal help text/template in `internal/app/screen/help.go`
   - Website docs (see below)
 - Documentation and help string style guidelines:
   - Consistent British spelling.
@@ -73,6 +81,7 @@ Navigation structure and page ordering are defined in `mkdocs.yml` under `nav:`.
 
 ## Before Finishing
 
-- Always Run `make sanity` which will run `golangci-lint`, `gofumpt`, and `go test`.
-- Add tests for any new functionality.
-- Make sure coverage is top notch
+- Run `make sanity` for code changes before finishing. Note that it rewrites files because it runs `golangci-lint --fix` and `gofumpt -w` before `go test`.
+- Run `make docs-check` for documentation or other user-facing text changes that affect the docs site, generated references, `README.md`, `lazyworktree.1`, or `mkdocs.yml`.
+- Add focused tests for new or changed behaviour. If you do not add or run tests for a touched path, explain why in the handoff.
+- Prefer strong coverage on the code you change rather than broad but shallow test additions.

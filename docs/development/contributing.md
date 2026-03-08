@@ -26,6 +26,9 @@ The binary is placed at `bin/lazyworktree`.
 
 ## Development Workflow
 
+Read `DESIGN.md` in the repository root when you are changing architecture,
+cross-cutting flows, or ownership across multiple subsystems.
+
 ### Quality Check
 
 Run the full quality pipeline before submitting changes:
@@ -39,6 +42,9 @@ This executes, in order:
 1. `make lint` — runs `golangci-lint` with `--fix`
 2. `make format` — runs `gofumpt` to normalise formatting
 3. `make test` — runs `go test ./...`
+
+Because `make sanity` includes `--fix` and `-w` steps, it may rewrite files in
+your working tree.
 
 ### Individual Targets
 
@@ -78,22 +84,25 @@ make docs-check       # Verify everything is in order
 make docs-serve       # Preview locally
 ```
 
+For documentation or other user-facing text changes, run `make docs-check`
+before submitting.
+
 ## CI Pipeline
 
 The project uses GitHub Actions with four workflow files:
 
 | Workflow | Purpose |
 | --- | --- |
-| `ci.yml` | Runs lint, format, and test on every push and pull request |
-| `pages.yml` | Builds and deploys the documentation site to GitHub Pages |
-| `nightly.yml` | Scheduled nightly checks (dependency freshness, extended tests) |
-| `releaser.yaml` | Automates binary releases via GoReleaser |
+| `ci.yml` | Runs docs synchronisation checks and pre-commit validation on matching push and pull request changes |
+| `pages.yml` | Validates docs, builds the website and docs, and deploys them to GitHub Pages from `main` |
+| `nightly.yml` | Generates coverage output and updates the README coverage badge on a schedule |
+| `releaser.yaml` | Builds tagged releases with GoReleaser and refreshes release notes |
 
 ## Commit Conventions
 
 The project follows [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/):
 
-- **Title**: 50 characters maximum, imperative or past tense
+- **Title**: 50 characters maximum
 - **Body**: 70 characters per line, cohesive paragraph unless bullet points aid clarity
 - **Tense**: Past tense throughout
 - **Content**: State **what** changed and **why** — never describe **how**
@@ -125,11 +134,19 @@ when the AI script exceeded 30 seconds.
 ## Code Style
 
 - **Theme colours**: all UI rendering must use theme fields — never hardcode colours
+- **CLI surface changes**: when adding or changing commands, arguments, or flags, update:
+    - Shell completion
+    - `README.md`
+    - `lazyworktree.1`
+    - Internal help text/template in `internal/app/screen/help.go`
+    - Generated CLI docs via `make docs-sync`
+    - Relevant website docs
 - **User-facing changes**: when adding features, options, or keybindings, update all of:
     - `README.md`
     - `lazyworktree.1` man page
-    - Internal help (`NewHelpScreen.helpText`)
+    - Internal help text/template in `internal/app/screen/help.go`
     - Documentation site (if applicable)
+- **Testing**: add focused tests for changed behaviour where practical, and explain any gaps in your handoff or pull request notes
 
 ## Filing Bug Reports
 

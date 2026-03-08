@@ -1,210 +1,252 @@
 # Architecture
 
-An overview of LazyWorktree's internal design, adapted for contributors and anyone curious about how the application is structured.
+An overview of LazyWorktree's internal design for contributors who need to
+understand where behaviour lives and how the main subsystems fit together.
 
 <div class="mint-callout">
-  <p><strong>Use this page when:</strong> you want to understand how the codebase is organised, where to find things, or how to add new features.</p>
+  <p><strong>Use this page when:</strong> you want to understand package ownership, TUI versus CLI responsibilities, or where to make architectural changes.</p>
 </div>
 
 !!! note
-    This page is a curated summary. The full, authoritative design document lives at [`DESIGN.md`](https://github.com/chmouel/lazyworktree/blob/main/DESIGN.md) in the repository root.
+    This page is a curated summary. The root [`DESIGN.md`](https://github.com/chmouel/lazyworktree/blob/main/DESIGN.md) remains the authoritative architecture note for the repository.
 
 ## Overview
 
-LazyWorktree is a terminal UI for Git worktree management, built with [BubbleTea](https://github.com/charmbracelet/bubbletea). The architecture follows the Elm-inspired **Model-Update-View** pattern:
+LazyWorktree is a Git worktree manager with two entry paths built on shared
+subsystems:
 
-- **Model** holds application state
-- **Update** processes events and returns a new model
-- **View** renders the model to a string (pure function, no side effects)
+- an interactive Bubble Tea TUI for day-to-day workflow
+- CLI subcommands for scripting and non-interactive operations
 
-## Component Architecture
+At a high level:
 
-```
-┌────────────────────────────────────────────────┐
-│                  CLI Layer                      │
-│            cmd/lazyworktree/                    │
-│       (Cobra commands, flags, subcommands)      │
-└────────────────────┬───────────────────────────┘
-                     │
-┌────────────────────▼───────────────────────────┐
-│                  TUI Layer                      │
-│              internal/app/                      │
-│                                                 │
-│   Model (app.go)                                │
-│     ├── State management (state/)               │
-│     ├── Screen manager (screen/)                │
-│     └── Services (services/)                    │
-│                                                 │
-│   Update (handlers.go)                          │
-│     └── Key bindings, message routing,          │
-│         async command dispatch                  │
-│                                                 │
-│   View (render_*.go)                            │
-│     └── Lipgloss styling, theme integration     │
-└────────────────────┬───────────────────────────┘
-                     │
-┌────────────────────▼───────────────────────────┐
-│               Services Layer                    │
-│             internal/git/                       │
-│   Git CLI wrapper, PR/MR integration,           │
-│   CI status polling, semaphore concurrency      │
-└────────────────────┬───────────────────────────┘
-                     │
-┌────────────────────▼───────────────────────────┐
-│            Configuration Layer                  │
-│             internal/config/                    │
-│      5-level cascade, theme management          │
-└─────────────────────────────────────────────────┘
+1. `cmd/lazyworktree` is the process entrypoint.
+2. `internal/bootstrap` builds the command graph and selects TUI or CLI mode.
+3. `internal/app` owns the Bubble Tea model, rendering, modal screens, and
+   interactive workflows.
+4. `internal/cli` owns non-interactive orchestration for commands such as
+   create, rename, delete, list, exec, and note.
+5. Shared packages such as `internal/git`, `internal/config`,
+   `internal/security`, `internal/theme`, and `internal/multiplexer` support
+   both modes.
+
+## Runtime Shape
+
+```text
+cmd/lazyworktree/main.go
+        |
+        v
+internal/bootstrap
+  |-----------------------------|
+  |                             |
+  v                             v
+TUI path                     CLI path
+internal/app                 internal/cli
+  |                             |
+  |---- uses shared subsystems --|
+                |
+                v
+  internal/config / internal/git / internal/security
+  internal/theme  / internal/multiplexer / internal/models
 ```
 
-## Directory Structure
+## Repository Map
 
-| Directory | Purpose |
+| Path | Responsibility |
 | --- | --- |
-| `cmd/lazyworktree/` | CLI entry point (Cobra commands) |
-| `internal/app/` | TUI application (BubbleTea model, handlers, views) |
-| `internal/app/screen/` | Modal screen management (stack-based overlays) |
-| `internal/app/services/` | UI services (debounce, cache) |
-| `internal/app/state/` | Application state |
-| `internal/app/handlers/` | Message handlers |
-| `internal/git/` | Git CLI wrapper, GitHub/GitLab API integration |
-| `internal/config/` | Configuration struct, YAML loading, cascade logic |
-| `internal/theme/` | Theme system (21 built-in themes, custom theme support) |
-| `internal/models/` | Data structures (`WorktreeInfo`, `PRInfo`) |
-| `internal/security/` | TOFU trust model for `.wt` files |
-| `internal/commands/` | Custom command execution |
-| `internal/log/` | Logging utilities |
+| `cmd/lazyworktree/` | Process entrypoint |
+| `internal/bootstrap/` | CLI graph, flags, mode selection, TUI startup |
+| `internal/app/` | Bubble Tea model, updates, rendering, worktree workflows |
+| `internal/app/screen/` | Modal screens such as help, palette, trust, commit, note, checklist |
+| `internal/app/services/` | Shared TUI helpers for notes, status tree, CI cache, env expansion, pager, and watch support |
+| `internal/app/state/` | Small typed state containers for view and pending action state |
+| `internal/cli/` | Non-interactive operations and interactive selectors for subcommands |
+| `internal/git/` | Git, GitHub, and GitLab integration plus diff/pager helpers |
+| `internal/config/` | App config loading, CLI override merging, `.wt` repo config loading |
+| `internal/security/` | TOFU trust persistence for `.wt` files |
+| `internal/theme/` | Built-in themes, custom theme support, terminal background detection |
+| `internal/multiplexer/` | tmux, zellij, shell, and container command assembly |
+| `internal/models/` | Shared data types such as worktrees, PRs, issues, CI checks, and status files |
+| `internal/commands/` | Helper commands such as symlink setup |
 
-## Key Abstractions
+## TUI Architecture
 
-### Model-Update-View
+The default `lazyworktree` command launches the Bubble Tea program from
+`internal/bootstrap`.
 
-The **Model** struct (`internal/app/app.go`) holds all application state: the screen manager, worktree table, git service, configuration, and active theme.
+`internal/app` follows the Model-Update-View pattern:
 
-The **Update** function (`internal/app/handlers.go`) receives key events and custom messages, routes them to specialised handlers, dispatches async commands via `tea.Cmd`, and returns the updated model.
+- **Model** coordinates configuration, theme, caches, selection state, async
+  work, and shared services.
+- **Update** logic lives primarily in `handlers.go` plus focused feature files
+  such as `worktree_operations.go`, `app_git.go`, `ci.go`, and
+  `worktree_sync.go`.
+- **View** rendering is split across `render_*.go`, `layout.go`, `renderer.go`,
+  and table style helpers.
+- **Modal screens** are handled by `internal/app/screen` through a stack-based
+  screen manager.
 
-**View** functions (`internal/app/render_*.go`) are pure: they take a model and return a string. No business logic lives in the view layer. All styling uses theme fields via Lipgloss.
+The model state is intentionally split by concern:
 
-### Git Service
+- UI widgets and active screen stack
+- worktree, status, notes, and log data currently on screen
+- view and layout state
+- injected services such as git, trust, status tree, and watch support
 
-The git service (`internal/git/service.go`) wraps the `git` CLI rather than using a Go library. This ensures the user's git configuration (aliases, hooks, credentials) is respected and gives precise control over flags.
+## CLI Architecture
 
-Concurrency is managed with a buffered-channel semaphore (capacity: `NumCPU * 2`, capped between 4 and 32). Every git operation acquires a token before running and releases it on completion, providing simple backpressure without goroutine leaks.
+The CLI layer is not a thin wrapper over the TUI. `internal/cli` has its own
+orchestration for:
 
-### Screen Management
+- worktree creation and removal
+- PR and issue selection
+- trust checks for `.wt` lifecycle hooks
+- interactive fallback with `fzf` or prompt-based selection
+- editor, pager, and command execution helpers
 
-Screens use a stack-based modal system (`internal/app/screen/manager.go`). The main worktree view sits at the bottom of the stack; modals (help, worktree creation, command palette, confirmation dialogs) are pushed on top and popped when dismissed.
+This separation keeps the TUI responsive while still allowing automation
+workflows to reuse the same domain services and config rules.
 
-Screen types include: help overlay, worktree creation menu, custom command selection, confirmation dialogs, text input prompts, file selection, and command history.
+## Key Design Decisions
 
-### Theme System
+### Bootstrap owns command wiring
 
-Themes define 11 colour fields (accent, border, text, success, warning, error, and others). There are 21 built-in themes covering popular palettes (Dracula, Catppuccin, Solarized, Gruvbox, Nord, Tokyo Night, and more). Custom themes can inherit from a base theme and override individual fields via YAML configuration.
+The root command graph is assembled in `internal/bootstrap` using
+`urfave/cli/v3`, not in the entrypoint package. This keeps `main.go` trivial and
+centralises startup behaviour:
 
-**Rule**: all UI rendering must use theme fields — never hardcoded colours.
+- global flags are defined once
+- subcommands share the same config-loading path
+- TUI startup and CLI execution apply overrides consistently
 
-### Configuration Cascade
+### The TUI is stateful, but screens are modular
 
-Configuration follows a 5-level precedence (highest to lowest):
+The main model is large because it coordinates panes, caches, selections, async
+effects, and external integrations. To keep that manageable, modal behaviour is
+pushed into `internal/app/screen`.
 
-1. CLI flags (`--theme`, `--worktree-dir`, etc.)
-2. Environment variables (`LAZYWORKTREE_*`)
-3. Repository-local config (`.lazyworktree.yaml` in the repo root)
-4. Global config (`~/.config/lazyworktree/config.yaml`)
-5. Built-in defaults
+The screen manager is a simple stack:
 
-This mirrors Git's own configuration hierarchy, allowing per-repository overrides whilst maintaining sensible global defaults.
+- push a modal over the main view
+- update only the active screen while it is open
+- pop back to the previous screen on dismissal
 
-## Architecture Trade-offs
+Current screen types include confirm, info, input, textarea, note view, help,
+trust, welcome, commit, palette, diff, PR selection, issue selection, generic
+list selection, loading, commit files, checklist, taskboard, and commit
+message.
 
-| Decision | Rationale |
-| --- | --- |
-| **BubbleTea** over tcell/tview | Declarative Model-Update-View is easier to reason about and test, despite greater verbosity |
-| **Git CLI wrapper** over go-git | Respects user git config, simpler error handling; requires git binary (acceptable for a git TUI) |
-| **Semaphore concurrency** over worker pools | Simple token-based limiting with no goroutine leaks; trades away priority queuing |
-| **5-level config cascade** over single file | Matches git-like expectations for per-repo customisation; adds loading complexity |
+### Git integration is intentionally CLI-first
 
-## Import Dependency Graph
+`internal/git.Service` wraps external commands rather than embedding a pure Go
+Git implementation.
 
-```
-cmd/lazyworktree
-    ↓
-internal/app
-    ├→ internal/config
-    ├→ internal/theme
-    ├→ internal/git
-    ├→ internal/models
-    ├→ internal/security
-    ├→ internal/commands
-    └→ internal/log
+Reasons:
 
-internal/git
-    ├→ internal/config
-    ├→ internal/models
-    ├→ internal/commands
-    └→ internal/log
+- exact Git behaviour matters more than abstraction purity
+- user credentials and forge tooling already live in the shell environment
+- the same service can call `git`, `gh`, and `glab`
+- errors and output are easier to align with real command-line behaviour
 
-internal/config
-    ├→ internal/theme
-    └→ internal/utils
-```
+The service uses a buffered-channel semaphore to cap concurrent git work at
+`NumCPU * 2`, clamped to the range `4..32`.
 
-Circular dependencies are avoided by design — for example, `theme` does not import `config`.
+### Configuration is layered through files, git config, and runtime overrides
 
-## Performance Considerations
+The current config model is:
 
-| Mechanism | Detail |
-| --- | --- |
-| **Debouncing** | Details pane: 200 ms, file search input: 150 ms |
-| **Caching** | PR data: 30 s TTL, worktree details: 2 s TTL, CI checks: 30 s TTL |
-| **Concurrency** | Semaphore limits concurrent git operations (`NumCPU * 2`, max 32) |
-| **Targets** | Worktree list refresh < 200 ms, PR status < 500 ms, screen transitions < 16 ms |
+1. built-in defaults from `DefaultConfig()`
+2. YAML config from the standard config location or an explicit config file
+3. Git global config (`git config --global lw.*`)
+4. Git local config for the current repository (`git config --local lw.*`)
+5. runtime CLI overrides applied by bootstrap flags and `--config`
 
-## Security Model
+Important details:
 
-`.wt` files can execute arbitrary commands, so LazyWorktree uses a **Trust On First Use** (TOFU) model:
+- terminal background detection chooses a default theme only when no theme was
+  set by config sources
+- repository lifecycle hooks are loaded separately from a `.wt` file, not from a
+  repo-local YAML app config
+- there is no `LAZYWORKTREE_*` application config cascade
 
-1. On first encounter, the `.wt` file is hashed and the user is asked to **Trust**, **Block**, or **Cancel**
-2. On subsequent runs, the hash is compared — a mismatch triggers re-evaluation
-3. Trust decisions are stored in `~/.local/share/lazyworktree/trusted.json`
+### External tooling is a first-class capability
 
-Three trust modes are available: `tofu` (default — prompt on first use, warn on changes), `never` (block all execution), and `always` (no prompts — use with caution).
+LazyWorktree is designed to cooperate with the surrounding development
+environment instead of replacing it.
+
+That shows up in several places:
+
+- custom commands run in the shell with worktree-specific environment variables
+- tmux and zellij session scripts are generated from config rather than
+  hardcoded
+- optional container execution wraps commands for Docker or Podman
+- diff and CI output can flow through configured pager commands
+- note and branch name generation can be delegated to external scripts
+
+The command environment contract is shared across TUI and CLI paths so both
+modes speak the same worktree-aware variable vocabulary.
+
+### `.wt` lifecycle hooks use TOFU
+
+Repository hooks are loaded from a `.wt` file in the repo root. Because these
+commands can execute arbitrary shell code, LazyWorktree stores a hash-based
+trust decision in:
+
+- `$XDG_DATA_HOME/lazyworktree/trusted.json`, or
+- `~/.local/share/lazyworktree/trusted.json`
+
+Supported trust modes are:
+
+- `tofu`: prompt on first use and when the file changes
+- `never`: refuse to run `.wt` commands
+- `always`: run without prompting
+
+## Data and Control Flow
+
+### TUI flow
+
+1. Bootstrap loads config, applies runtime overrides, and starts Bubble Tea.
+2. `app.NewModel` creates the git service, trust manager, status helpers,
+   theme, and initial UI state.
+3. User input becomes Bubble Tea messages.
+4. The active screen handles input first when a modal is open.
+5. Otherwise the main update loop routes the event to worktree, git, status,
+   log, notes, CI, or palette handlers.
+6. Long-running work runs via `tea.Cmd` and returns typed messages.
+7. Render functions turn the current model state into the pane layout.
+
+### CLI flow
+
+1. Bootstrap loads config and applies CLI overrides.
+2. A git service is created with the configured diff pager behaviour.
+3. `internal/cli` performs validation, selection, trust checks, and worktree
+   operations.
+4. Shared helpers are reused for notes, command environments, repo config, and
+   multiplexer integration where relevant.
+
+## Working on the Codebase
+
+When adding a new feature:
+
+- prefer the most specific package rather than growing a catch-all helper file
+- keep rendering theme-backed; avoid hardcoded colours
+- keep command environment and escaping rules centralised so TUI and CLI do not
+  drift apart
+- update the root `DESIGN.md` when a top-level subsystem, precedence rule, or
+  cross-package ownership boundary changes
 
 ## Testing Strategy
 
-| Layer | Approach |
-| --- | --- |
-| Unit tests | Pure functions: theme calculations, config merging, git output parsing |
-| Integration tests | Full Model-Update-View cycle, git service with mocked commands, config cascade with temp files |
-| Coverage target | 55 %+ focused on critical paths (git operations, config loading, key handlers) |
+The test suite is broad and close to the implementation packages.
 
-## Adding New Features
+The current emphasis is:
 
-### New screen type
+- unit tests for config parsing, theme behaviour, trust logic, and helper
+  functions
+- service tests for git and multiplexer behaviour
+- application tests for screen handling, layout, worktree operations, notes,
+  diff flows, and command execution
+- integration-style tests for end-to-end TUI and CLI flows
 
-1. Add a constant in `internal/app/screen/types.go`
-2. Create `internal/app/screen/<name>.go` implementing the `Screen` interface (`Type()`, `Update()`, `View()`)
-3. Add a handler in `internal/app/handlers.go` to push/pop the screen
-4. Use theme fields for all rendering
-
-### New configuration option
-
-1. Add a field to `AppConfig` in `internal/config/config.go`
-2. Set the default in `defaultConfig()` in `internal/config/load.go`
-3. Add a CLI flag in `cmd/lazyworktree/flags.go`
-4. Map the environment variable in `internal/config/load.go`
-5. Update `README.md`, `lazyworktree.1`, and the help screen
-
-### New theme
-
-1. Add a theme constant in `internal/theme/theme.go`
-2. Define the theme function returning a `*Theme` struct with all 11 colour fields
-3. Register in `AvailableThemes`
-4. Test contrast across light and dark terminal backgrounds
-
-### New git operation
-
-1. Add a method to `internal/git/service.go` using the semaphore pattern
-2. Define a message type in `internal/app/messages.go`
-3. Add a handler in `internal/app/handlers.go`
-4. Add tests in `internal/git/service_test.go`
+For new work, prefer targeted tests near the changed package before reaching for
+broader integration coverage.
