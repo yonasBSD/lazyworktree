@@ -2,7 +2,9 @@ package screen
 
 import (
 	"fmt"
+	"sort"
 	"strings"
+	"unicode"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
@@ -20,6 +22,53 @@ type PaletteItem struct {
 	IsMRU       bool   // Recently used items
 	Shortcut    string // Keyboard shortcut display (e.g., "g")
 	Icon        string // Category icon (Nerd Font)
+
+	matchMode   paletteMatchMode
+	matchOrder  int
+	matchScore  int
+	matchSource paletteMatchSource
+	matchStart  int
+}
+
+type paletteMatchMode int
+
+const (
+	paletteMatchModeNone paletteMatchMode = iota
+	paletteMatchModeExact
+	paletteMatchModePrefix
+	paletteMatchModeSubstring
+	paletteMatchModeFuzzy
+)
+
+type paletteMatchSource int
+
+const (
+	paletteMatchSourceNone paletteMatchSource = iota
+	paletteMatchSourceLabel
+	paletteMatchSourceDescription
+	paletteMatchSourceCombined
+)
+
+const noPaletteMatchScore = int(^uint(0) >> 1)
+
+type paletteMatch struct {
+	mode   paletteMatchMode
+	score  int
+	source paletteMatchSource
+	start  int
+}
+
+type paletteSection struct {
+	hasHeader bool
+	header    PaletteItem
+	items     []PaletteItem
+	bestScore int
+	order     int
+}
+
+type textSpan struct {
+	start int
+	end   int
 }
 
 // CommandPaletteScreen is the command picker modal.
@@ -54,7 +103,8 @@ func NewCommandPaletteScreen(items []PaletteItem, maxWidth, maxHeight int, thm *
 
 	// Find first non-section item for initial cursor
 	initialCursor := 0
-	for i, item := range items {
+	for i := range items {
+		item := items[i]
 		if !item.IsSection {
 			initialCursor = i
 			break
@@ -194,63 +244,265 @@ func (s *CommandPaletteScreen) applyFilter() {
 	if query == "" {
 		s.Filtered = s.Items
 	} else {
-		s.Filtered = make([]PaletteItem, 0, len(s.Items))
-		var pendingSection PaletteItem
-		hasPendingSection := false
-
-		for _, item := range s.Items {
-			if item.IsSection {
-				pendingSection = item
-				hasPendingSection = true
-				continue
-			}
-
-			// Fuzzy match: all query characters must appear in order
-			label := strings.ToLower(item.Label)
-			desc := strings.ToLower(item.Description)
-			combined := label + " " + desc
-
-			matched := true
-			pos := 0
-			for _, ch := range query {
-				idx := strings.IndexRune(combined[pos:], ch)
-				if idx == -1 {
-					matched = false
-					break
-				}
-				pos += idx + 1
-			}
-
-			if matched {
-				if hasPendingSection {
-					s.Filtered = append(s.Filtered, pendingSection)
-					hasPendingSection = false
-				}
-				s.Filtered = append(s.Filtered, item)
-			}
-		}
+		s.Filtered = s.buildFilteredItems(query)
 	}
 
-	// Reset cursor and scroll offset if list changes
-	if s.Cursor >= len(s.Filtered) {
-		s.Cursor = max(0, len(s.Filtered)-1)
-	}
-
-	// Find first non-section item for cursor
+	s.Cursor = 0
 	for s.Cursor < len(s.Filtered) && s.Filtered[s.Cursor].IsSection {
 		s.Cursor++
 	}
 	if s.Cursor >= len(s.Filtered) {
-		s.Cursor = 0
+		s.Cursor = max(0, len(s.Filtered)-1)
 	}
 
 	s.ScrollOffset = 0
 }
 
-// highlightMatches highlights matching characters in text based on the query.
-func (s *CommandPaletteScreen) highlightMatches(text, query string) string {
+func (s *CommandPaletteScreen) buildFilteredItems(query string) []PaletteItem {
+	sections := make([]paletteSection, 0, len(s.Items))
+	current := paletteSection{bestScore: noPaletteMatchScore}
+	hasCurrent := false
+	itemOrder := 0
+	sectionOrder := 0
+
+	flushSection := func() {
+		if !hasCurrent || len(current.items) == 0 {
+			return
+		}
+		sort.SliceStable(current.items, func(i, j int) bool {
+			if current.items[i].matchScore != current.items[j].matchScore {
+				return current.items[i].matchScore < current.items[j].matchScore
+			}
+			return current.items[i].matchOrder < current.items[j].matchOrder
+		})
+		sections = append(sections, current)
+	}
+
+	for i := range s.Items {
+		item := s.Items[i]
+		if item.IsSection {
+			flushSection()
+			current = paletteSection{
+				hasHeader: true,
+				header:    item,
+				bestScore: noPaletteMatchScore,
+				order:     sectionOrder,
+			}
+			hasCurrent = true
+			sectionOrder++
+			continue
+		}
+
+		if !hasCurrent {
+			current = paletteSection{bestScore: noPaletteMatchScore, order: sectionOrder}
+			hasCurrent = true
+			sectionOrder++
+		}
+
+		match, ok := scorePaletteItem(query, item)
+		if !ok {
+			continue
+		}
+		match.matchOrder = itemOrder
+		itemOrder++
+		current.items = append(current.items, match)
+		if match.matchScore < current.bestScore {
+			current.bestScore = match.matchScore
+		}
+	}
+	flushSection()
+
+	sort.SliceStable(sections, func(i, j int) bool {
+		if sections[i].bestScore != sections[j].bestScore {
+			return sections[i].bestScore < sections[j].bestScore
+		}
+		return sections[i].order < sections[j].order
+	})
+
+	filtered := make([]PaletteItem, 0, len(s.Items))
+	for i := range sections {
+		section := sections[i]
+		if section.hasHeader {
+			filtered = append(filtered, section.header)
+		}
+		filtered = append(filtered, section.items...)
+	}
+
+	return filtered
+}
+
+func scorePaletteItem(query string, item PaletteItem) (PaletteItem, bool) {
+	label := strings.ToLower(item.Label)
+	desc := strings.ToLower(item.Description)
+	combined := label + " " + desc
+
+	best := paletteMatch{score: noPaletteMatchScore}
+
+	candidates := []paletteMatch{
+		bestTextMatch(label, query, paletteMatchSourceLabel, 0, 100, 200),
+		bestTextMatch(desc, query, paletteMatchSourceDescription, 300, 400, 500),
+	}
+
+	if score, ok := fuzzyScoreLower(query, label); ok {
+		candidates = append(candidates, paletteMatch{
+			mode:   paletteMatchModeFuzzy,
+			score:  600 + score,
+			source: paletteMatchSourceLabel,
+		})
+	}
+	if score, ok := fuzzyScoreLower(query, desc); ok {
+		candidates = append(candidates, paletteMatch{
+			mode:   paletteMatchModeFuzzy,
+			score:  700 + score,
+			source: paletteMatchSourceDescription,
+		})
+	}
+	if score, ok := fuzzyScoreLower(query, combined); ok {
+		candidates = append(candidates, paletteMatch{
+			mode:   paletteMatchModeFuzzy,
+			score:  800 + score,
+			source: paletteMatchSourceCombined,
+		})
+	}
+
+	for _, candidate := range candidates {
+		if candidate.score < best.score {
+			best = candidate
+		}
+	}
+
+	if best.score == noPaletteMatchScore {
+		return PaletteItem{}, false
+	}
+
+	item.matchMode = best.mode
+	item.matchScore = best.score
+	item.matchSource = best.source
+	item.matchStart = best.start
+	return item, true
+}
+
+func bestTextMatch(text, query string, source paletteMatchSource, exactBase, prefixBase, substringBase int) paletteMatch {
+	if query == "" || text == "" {
+		return paletteMatch{score: noPaletteMatchScore}
+	}
+
+	if start := findExactWordMatch(text, query); start >= 0 {
+		return paletteMatch{
+			mode:   paletteMatchModeExact,
+			score:  exactBase + start,
+			source: source,
+			start:  start,
+		}
+	}
+	if start := findWordPrefixMatch(text, query); start >= 0 {
+		return paletteMatch{
+			mode:   paletteMatchModePrefix,
+			score:  prefixBase + start,
+			source: source,
+			start:  start,
+		}
+	}
+	if start := strings.Index(text, query); start >= 0 {
+		return paletteMatch{
+			mode:   paletteMatchModeSubstring,
+			score:  substringBase + start,
+			source: source,
+			start:  start,
+		}
+	}
+
+	return paletteMatch{score: noPaletteMatchScore}
+}
+
+func findExactWordMatch(text, query string) int {
+	for _, span := range wordSpans(text) {
+		if text[span.start:span.end] == query {
+			return span.start
+		}
+	}
+	return -1
+}
+
+func findWordPrefixMatch(text, query string) int {
+	for _, span := range wordSpans(text) {
+		word := text[span.start:span.end]
+		if strings.HasPrefix(word, query) {
+			return span.start
+		}
+	}
+	return -1
+}
+
+func wordSpans(text string) []textSpan {
+	spans := make([]textSpan, 0, strings.Count(text, " ")+1)
+	start := -1
+	for idx, r := range text {
+		if isWordRune(r) {
+			if start == -1 {
+				start = idx
+			}
+			continue
+		}
+		if start >= 0 {
+			spans = append(spans, textSpan{start: start, end: idx})
+			start = -1
+		}
+	}
+	if start >= 0 {
+		spans = append(spans, textSpan{start: start, end: len(text)})
+	}
+	return spans
+}
+
+func isWordRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r)
+}
+
+func fuzzyScoreLower(query, target string) (int, bool) {
 	if query == "" {
-		return text
+		return 0, true
+	}
+
+	tRunes := []rune(target)
+	score := 0
+	lastIdx := -1
+	searchFrom := 0
+
+	for _, qc := range query {
+		found := false
+		for i, tc := range tRunes {
+			if i < searchFrom {
+				continue
+			}
+			if tc != qc {
+				continue
+			}
+			if lastIdx >= 0 {
+				gap := i - lastIdx - 1
+				score += gap * 2
+				if gap == 0 {
+					score--
+				}
+			} else {
+				score += i * 2
+			}
+			lastIdx = i
+			searchFrom = i + 1
+			found = true
+			break
+		}
+		if !found {
+			return 0, false
+		}
+	}
+
+	return score, true
+}
+
+func (s *CommandPaletteScreen) highlightFuzzyMatches(text, query string, baseStyle lipgloss.Style) string {
+	if query == "" {
+		return baseStyle.Render(text)
 	}
 
 	var result strings.Builder
@@ -259,24 +511,37 @@ func (s *CommandPaletteScreen) highlightMatches(text, query string) string {
 	pos := 0
 
 	accentStyle := lipgloss.NewStyle().Foreground(s.Thm.Accent).Bold(true)
-	normalStyle := lipgloss.NewStyle().Foreground(s.Thm.TextFg)
 
 	for _, qch := range queryLower {
 		idx := strings.IndexRune(textLower[pos:], qch)
 		if idx == -1 {
 			break
 		}
-		// Render unmatched portion
 		if idx > 0 {
-			result.WriteString(normalStyle.Render(text[pos : pos+idx]))
+			result.WriteString(baseStyle.Render(text[pos : pos+idx]))
 		}
-		// Render matched char
 		result.WriteString(accentStyle.Render(string(text[pos+idx])))
 		pos += idx + 1
 	}
-	// Remainder
 	if pos < len(text) {
-		result.WriteString(normalStyle.Render(text[pos:]))
+		result.WriteString(baseStyle.Render(text[pos:]))
+	}
+	return result.String()
+}
+
+func (s *CommandPaletteScreen) highlightContiguousMatch(text string, start, length int, baseStyle lipgloss.Style) string {
+	if start < 0 || start >= len(text) || length <= 0 {
+		return baseStyle.Render(text)
+	}
+	end := min(len(text), start+length)
+	accentStyle := lipgloss.NewStyle().Foreground(s.Thm.Accent).Bold(true)
+	var result strings.Builder
+	if start > 0 {
+		result.WriteString(baseStyle.Render(text[:start]))
+	}
+	result.WriteString(accentStyle.Render(text[start:end]))
+	if end < len(text) {
+		result.WriteString(baseStyle.Render(text[end:]))
 	}
 	return result.String()
 }
@@ -332,6 +597,9 @@ func (s *CommandPaletteScreen) View() string {
 		Foreground(s.Thm.AccentFg).
 		Background(s.Thm.Accent).
 		Bold(true)
+
+	labelStyle := lipgloss.NewStyle().
+		Foreground(s.Thm.TextFg)
 
 	descStyle := lipgloss.NewStyle().
 		Foreground(s.Thm.MutedFg)
@@ -411,14 +679,27 @@ func (s *CommandPaletteScreen) View() string {
 		} else {
 			// Normal item
 			styledIcon := iconStyle.Render(icon)
-
-			// Apply match highlighting when filtering
-			styledLabel := paddedLabel
-			if query != "" {
-				styledLabel = s.highlightMatches(paddedLabel, query)
-			}
-
+			styledLabel := labelStyle.Render(paddedLabel)
 			styledDesc := descStyle.Render(paddedDesc)
+			if query != "" {
+				switch it.matchSource {
+				case paletteMatchSourceLabel:
+					if it.matchMode == paletteMatchModeFuzzy {
+						styledLabel = s.highlightFuzzyMatches(paddedLabel, query, labelStyle)
+					} else {
+						styledLabel = s.highlightContiguousMatch(paddedLabel, it.matchStart, len(query), labelStyle)
+					}
+				case paletteMatchSourceDescription:
+					if it.matchMode == paletteMatchModeFuzzy {
+						styledDesc = s.highlightFuzzyMatches(paddedDesc, query, descStyle)
+					} else {
+						styledDesc = s.highlightContiguousMatch(paddedDesc, it.matchStart, len(query), descStyle)
+					}
+				case paletteMatchSourceCombined:
+					styledLabel = s.highlightFuzzyMatches(paddedLabel, query, labelStyle)
+					styledDesc = s.highlightFuzzyMatches(paddedDesc, query, descStyle)
+				}
+			}
 
 			line := styledIcon + " " + styledLabel + " " + styledDesc
 

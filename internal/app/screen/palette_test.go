@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -90,16 +91,14 @@ func TestCommandPaletteFilterHidesEmptySections(t *testing.T) {
 	}
 
 	scr := NewCommandPaletteScreen(items, 100, 24, theme.Dracula())
-	next, _ := scr.Update(tea.KeyPressMsg{Code: 'w', Text: string('w')})
-	nextScr, ok := next.(*CommandPaletteScreen)
-	require.True(t, ok)
-	require.NotNil(t, nextScr)
+	scr.FilterInput.SetValue("worktree")
+	scr.applyFilter()
 
-	require.Len(t, nextScr.Filtered, 4)
-	assert.Equal(t, "Worktree Actions", nextScr.Filtered[0].Label)
-	assert.Equal(t, "create", nextScr.Filtered[1].ID)
-	assert.Equal(t, "Navigation", nextScr.Filtered[2].Label)
-	assert.Equal(t, "focus-worktrees", nextScr.Filtered[3].ID)
+	require.Len(t, scr.Filtered, 4)
+	assert.Equal(t, "Worktree Actions", scr.Filtered[0].Label)
+	assert.Equal(t, "create", scr.Filtered[1].ID)
+	assert.Equal(t, "Navigation", scr.Filtered[2].Label)
+	assert.Equal(t, "focus-worktrees", scr.Filtered[3].ID)
 }
 
 func TestCommandPaletteHighlightMatches(t *testing.T) {
@@ -110,12 +109,62 @@ func TestCommandPaletteHighlightMatches(t *testing.T) {
 	scr := NewCommandPaletteScreen(items, 100, 24, theme.Dracula())
 
 	// Test highlight function directly
-	result := scr.highlightMatches("Create worktree", "cre")
+	result := scr.highlightContiguousMatch("Create worktree", 0, len("cre"), lipgloss.NewStyle())
 	require.NotEmpty(t, result, "highlighted result should not be empty")
 
 	// With empty query, should return original text
-	result = scr.highlightMatches("Create worktree", "")
+	result = scr.highlightFuzzyMatches("Create worktree", "", lipgloss.NewStyle())
 	assert.Equal(t, "Create worktree", result, "empty query should return original text")
+}
+
+func TestCommandPaletteRanksLabelWordMatchBeforeDescriptionPrefix(t *testing.T) {
+	items := []PaletteItem{
+		{Label: "Git Operations", IsSection: true},
+		{ID: "pr", Label: "Open PR", Description: "Open PR in browser"},
+		{Label: "Log Pane", IsSection: true},
+		{ID: "commit-view", Label: "Browse commit files", Description: "Browse files changed in selected commit"},
+	}
+
+	scr := NewCommandPaletteScreen(items, 100, 24, theme.Dracula())
+	scr.FilterInput.SetValue("browse")
+	scr.applyFilter()
+
+	require.Len(t, scr.Filtered, 4)
+	assert.Equal(t, "Log Pane", scr.Filtered[0].Label)
+	assert.Equal(t, "commit-view", scr.Filtered[1].ID)
+	assert.Equal(t, "Git Operations", scr.Filtered[2].Label)
+	assert.Equal(t, "pr", scr.Filtered[3].ID)
+	assert.Equal(t, 1, scr.Cursor, "cursor should reset to the strongest match")
+}
+
+func TestCommandPalettePrefersLabelMatchWithinSection(t *testing.T) {
+	items := []PaletteItem{
+		{Label: "Git Operations", IsSection: true},
+		{ID: "browser", Label: "Open PR", Description: "Open PR in browser"},
+		{ID: "browse-files", Label: "Browse files", Description: "Inspect the selected commit files"},
+	}
+
+	scr := NewCommandPaletteScreen(items, 100, 24, theme.Dracula())
+	scr.FilterInput.SetValue("browse")
+	scr.applyFilter()
+
+	require.Len(t, scr.Filtered, 3)
+	assert.Equal(t, "browse-files", scr.Filtered[1].ID)
+	assert.Equal(t, "browser", scr.Filtered[2].ID)
+}
+
+func TestCommandPaletteKeepsFuzzyFallback(t *testing.T) {
+	items := []PaletteItem{
+		{Label: "Log Pane", IsSection: true},
+		{ID: "commit-view", Label: "Browse commit files", Description: "Browse files changed in selected commit"},
+	}
+
+	scr := NewCommandPaletteScreen(items, 100, 24, theme.Dracula())
+	scr.FilterInput.SetValue("brcf")
+	scr.applyFilter()
+
+	require.Len(t, scr.Filtered, 2)
+	assert.Equal(t, "commit-view", scr.Filtered[1].ID)
 }
 
 func TestCommandPaletteScrollIndicators(t *testing.T) {
