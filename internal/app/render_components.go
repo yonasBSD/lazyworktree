@@ -257,7 +257,7 @@ func (m *Model) tagPillColor(tag string) color.Color {
 		m.theme.WarnFg,
 		m.theme.ErrorFg,
 		m.theme.Cyan,
-		m.theme.AccentDim,
+		m.theme.TextFg,
 	}
 	// Simple hash: sum of bytes mod palette length.
 	var h uint32

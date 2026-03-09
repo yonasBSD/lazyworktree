@@ -125,6 +125,16 @@ func TestTagColorDeterminism(t *testing.T) {
 	_ = c3 // just ensure it doesn't panic
 }
 
+func TestTagColorAvoidsAccentDimSlot(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
+	m := NewModel(cfg, "")
+
+	assert.Equal(t, m.theme.TextFg, m.tagPillColor("zaki"))
+	assert.NotEqual(t, m.theme.AccentDim, m.tagPillColor("zaki"))
+}
+
 func TestCIConclusionLabel(t *testing.T) {
 	t.Parallel()
 
