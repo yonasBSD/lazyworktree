@@ -249,6 +249,43 @@ func (m *Model) renderCIStatusPill(conclusion string) string {
 	return leftEdge + bubbleStyle.Render(" "+label+" ") + rightEdge
 }
 
+// tagPillColor returns a deterministic theme colour for a tag string.
+func (m *Model) tagPillColor(tag string) color.Color {
+	palette := []color.Color{
+		m.theme.Accent,
+		m.theme.SuccessFg,
+		m.theme.WarnFg,
+		m.theme.ErrorFg,
+		m.theme.Cyan,
+		m.theme.AccentDim,
+	}
+	// Simple hash: sum of bytes mod palette length.
+	var h uint32
+	for i := range len(tag) {
+		h += uint32(tag[i])
+	}
+	return palette[int(h)%len(palette)]
+}
+
+// renderTagPill renders a single tag as a bracketed label with foreground colour.
+func (m *Model) renderTagPill(tag string) string {
+	c := m.tagPillColor(tag)
+	style := lipgloss.NewStyle().Foreground(c).Bold(true)
+	return style.Render("«" + tag + "»")
+}
+
+// renderTagPills renders all tags as space-separated pill badges.
+func (m *Model) renderTagPills(tags []string) string {
+	if len(tags) == 0 {
+		return ""
+	}
+	pills := make([]string, len(tags))
+	for i, tag := range tags {
+		pills[i] = m.renderTagPill(tag)
+	}
+	return strings.Join(pills, " ")
+}
+
 // ciConclusionLabel maps a CI conclusion to an uppercase display label.
 func ciConclusionLabel(conclusion string) string {
 	switch conclusion {

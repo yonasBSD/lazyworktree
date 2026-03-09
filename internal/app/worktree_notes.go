@@ -167,6 +167,13 @@ func (m *Model) setWorktreeDescription(path, description string) {
 	})
 }
 
+func (m *Model) setWorktreeTags(path string, tags []string) {
+	m.updateWorktreeNoteField(path, func(existing models.WorktreeNote) models.WorktreeNote {
+		existing.Tags = tags
+		return existing
+	})
+}
+
 func (m *Model) setWorktreeColor(path, color string) {
 	trimmedColor := worktreecolor.Normalize(color)
 	m.updateWorktreeNoteField(path, func(existing models.WorktreeNote) models.WorktreeNote {
@@ -251,6 +258,47 @@ func (m *Model) showSetWorktreeDescription() tea.Cmd {
 	)
 	inputScr.OnSubmit = func(value string, _ bool) tea.Cmd {
 		m.setWorktreeDescription(wt.Path, value)
+		m.updateTable()
+		if m.state.data.selectedIndex >= 0 && m.state.data.selectedIndex < len(m.state.data.filteredWts) {
+			m.infoContent = m.buildInfoContent(m.state.data.filteredWts[m.state.data.selectedIndex])
+		}
+		return nil
+	}
+	inputScr.OnCancel = func() tea.Cmd {
+		return nil
+	}
+	m.state.ui.screenManager.Push(inputScr)
+	return textinput.Blink
+}
+
+// showSetWorktreeTags shows an input screen to set comma-separated tags for the selected worktree.
+func (m *Model) showSetWorktreeTags() tea.Cmd {
+	wt := m.selectedWorktree()
+	if wt == nil {
+		return nil
+	}
+
+	current := ""
+	if note, ok := m.getWorktreeNote(wt.Path); ok && len(note.Tags) > 0 {
+		current = strings.Join(note.Tags, ", ")
+	}
+
+	inputScr := appscreen.NewInputScreen(
+		"Set worktree tags",
+		"Comma-separated tags (e.g. bug, frontend, urgent)",
+		current,
+		m.theme,
+		m.config.IconsEnabled(),
+	)
+	inputScr.OnSubmit = func(value string, _ bool) tea.Cmd {
+		var tags []string
+		for part := range strings.SplitSeq(value, ",") {
+			t := strings.TrimSpace(part)
+			if t != "" {
+				tags = append(tags, t)
+			}
+		}
+		m.setWorktreeTags(wt.Path, tags)
 		m.updateTable()
 		if m.state.data.selectedIndex >= 0 && m.state.data.selectedIndex < len(m.state.data.filteredWts) {
 			m.infoContent = m.buildInfoContent(m.state.data.filteredWts[m.state.data.selectedIndex])

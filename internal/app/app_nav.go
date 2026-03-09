@@ -161,8 +161,13 @@ func (m *Model) updateTable() {
 				name = mainWorktreeName
 			}
 			haystacks := []string{strings.ToLower(name), strings.ToLower(wt.Branch)}
-			if n, ok := m.getWorktreeNote(wt.Path); ok && n.Description != "" {
-				haystacks = append(haystacks, strings.ToLower(n.Description))
+			if n, ok := m.getWorktreeNote(wt.Path); ok {
+				if n.Description != "" {
+					haystacks = append(haystacks, strings.ToLower(n.Description))
+				}
+				if len(n.Tags) > 0 {
+					haystacks = append(haystacks, strings.ToLower(strings.Join(n.Tags, " ")))
+				}
 			}
 			if hasPathSep {
 				haystacks = append(haystacks, strings.ToLower(wt.Path))
@@ -212,6 +217,7 @@ func (m *Model) updateTable() {
 		name = "  " + prefix + name
 
 		// Truncate to configured max length with ellipsis if needed
+		// (operates on plain text only, before any ANSI styling)
 		if m.config.MaxNameLength > 0 {
 			nameRunes := []rune(name)
 			if len(nameRunes) > m.config.MaxNameLength {
@@ -222,6 +228,12 @@ func (m *Model) updateTable() {
 			if c := worktreecolor.Resolve(note.Color); c != nil {
 				name = lipgloss.NewStyle().Foreground(c).Render(name)
 			}
+		}
+
+		// Append tag pills after truncation and colour styling
+		// so truncation never corrupts ANSI sequences
+		if hasNote && len(note.Tags) > 0 {
+			name = name + " " + m.renderTagPills(note.Tags)
 		}
 		statusStr := combinedStatusIndicator(wt.Dirty, wt.HasUpstream, wt.Ahead, wt.Behind, wt.Unpushed, showIcons)
 
@@ -486,8 +498,11 @@ func (m *Model) findWorktreeMatchIndex(query string, start int, forward bool) in
 		if strings.Contains(strings.ToLower(wt.Branch), lowerQuery) {
 			return true
 		}
-		if n, ok := m.getWorktreeNote(wt.Path); ok && n.Description != "" {
-			if strings.Contains(strings.ToLower(n.Description), lowerQuery) {
+		if n, ok := m.getWorktreeNote(wt.Path); ok {
+			if n.Description != "" && strings.Contains(strings.ToLower(n.Description), lowerQuery) {
+				return true
+			}
+			if len(n.Tags) > 0 && strings.Contains(strings.ToLower(strings.Join(n.Tags, " ")), lowerQuery) {
 				return true
 			}
 		}

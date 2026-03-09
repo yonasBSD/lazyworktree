@@ -123,6 +123,37 @@ func TestFormatNoteFileDescriptionOnly(t *testing.T) {
 	assert.Equal(t, "My description", got.Description)
 }
 
+func TestParseNoteFileRoundTripWithTags(t *testing.T) {
+	note := models.WorktreeNote{
+		Tags:      []string{"bug", "frontend"},
+		UpdatedAt: 1709740800,
+		Note:      "Tagged worktree.",
+	}
+	data := FormatNoteFile(note)
+	got, err := ParseNoteFile(data)
+	require.NoError(t, err)
+	assert.Equal(t, note.Tags, got.Tags)
+	assert.Equal(t, note.UpdatedAt, got.UpdatedAt)
+	assert.Equal(t, note.Note+"\n", got.Note)
+}
+
+func TestFormatNoteFileTagsOnly(t *testing.T) {
+	note := models.WorktreeNote{Tags: []string{"urgent"}, UpdatedAt: 1}
+	data := FormatNoteFile(note)
+	assert.Contains(t, string(data), "tags:")
+	assert.Contains(t, string(data), "urgent")
+	got, err := ParseNoteFile(data)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"urgent"}, got.Tags)
+}
+
+func TestFormatNoteFileEmptyTagsNoFrontmatter(t *testing.T) {
+	note := models.WorktreeNote{Note: "plain note", Tags: []string{}}
+	data := FormatNoteFile(note)
+	assert.NotContains(t, string(data), "---")
+	assert.Contains(t, string(data), "plain note")
+}
+
 func TestFormatNoteFileColorOnly(t *testing.T) {
 	note := models.WorktreeNote{Color: "#ff0000", UpdatedAt: 1}
 	data := FormatNoteFile(note)

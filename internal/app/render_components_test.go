@@ -71,6 +71,49 @@ func TestRenderPRStatePill(t *testing.T) {
 	}
 }
 
+func TestRenderTagPill(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
+	m := NewModel(cfg, "")
+
+	result := m.renderTagPill("bug")
+	assert.Contains(t, result, "«bug»", "should render guillemet-wrapped tag")
+	assert.NotContains(t, result, "\ue0b6", "should not have Powerline edges")
+	assert.NotContains(t, result, "\ue0b4", "should not have Powerline edges")
+}
+
+func TestRenderTagPills(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
+	m := NewModel(cfg, "")
+
+	result := m.renderTagPills([]string{"bug", "frontend"})
+	assert.Contains(t, result, "bug")
+	assert.Contains(t, result, "frontend")
+
+	empty := m.renderTagPills(nil)
+	assert.Empty(t, empty)
+}
+
+func TestTagColorDeterminism(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
+	m := NewModel(cfg, "")
+
+	// Same tag must always produce the same colour
+	c1 := m.tagPillColor("bug")
+	c2 := m.tagPillColor("bug")
+	assert.Equal(t, c1, c2, "same tag should yield same colour")
+
+	// Different tags can differ (not guaranteed, but "bug" vs "feature" do differ
+	// because their byte sums differ mod 6)
+	c3 := m.tagPillColor("feature")
+	_ = c3 // just ensure it doesn't panic
+}
+
 func TestCIConclusionLabel(t *testing.T) {
 	t.Parallel()
 

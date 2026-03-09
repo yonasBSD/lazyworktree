@@ -146,6 +146,31 @@ func TestWorktreeInfo(t *testing.T) {
 	}
 }
 
+func TestWorktreeNoteIsEmpty(t *testing.T) {
+	tests := []struct {
+		name     string
+		note     WorktreeNote
+		expected bool
+	}{
+		{name: "empty note", note: WorktreeNote{}, expected: true},
+		{name: "with text", note: WorktreeNote{Note: "hello"}, expected: false},
+		{name: "with icon", note: WorktreeNote{Icon: "🔥"}, expected: false},
+		{name: "with color", note: WorktreeNote{Color: "red"}, expected: false},
+		{name: "with bold", note: WorktreeNote{Bold: true}, expected: false},
+		{name: "with description", note: WorktreeNote{Description: "desc"}, expected: false},
+		{name: "with tags", note: WorktreeNote{Tags: []string{"bug"}}, expected: false},
+		{name: "with empty tags", note: WorktreeNote{Tags: []string{}}, expected: true},
+		{name: "whitespace only", note: WorktreeNote{Note: "  ", Icon: " "}, expected: true},
+		{name: "updated_at only", note: WorktreeNote{UpdatedAt: 123}, expected: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.note.IsEmpty())
+		})
+	}
+}
+
 func TestConstants(t *testing.T) {
 	tests := []struct {
 		name     string
