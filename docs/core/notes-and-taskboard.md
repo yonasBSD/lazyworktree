@@ -23,7 +23,7 @@ Use the command palette (`:`  or `Ctrl+P`) and select **Set worktree description
 
 ### Tags
 
-Use the command palette (`:` or `Ctrl+P`) and select **Set worktree tags** to assign comma-separated labels to a worktree (e.g. `bug,frontend,urgent`). Tags display as coloured badges (using guillemet brackets, «tag») immediately after the worktree name, with each tag receiving a deterministic colour from the theme palette. Setting an empty value clears all tags. Tags are stored alongside other worktree note metadata (JSON or frontmatter) and are included in filter and search matching, making it straightforward to locate worktrees by label.
+Use the command palette (`:` or `Ctrl+P`) and select **Set worktree tags** to assign labels to a worktree, separating multiple tags with commas (e.g. `bug,frontend,urgent`). Tags display as coloured badges (using guillemet brackets, «tag») immediately after the worktree name, with each tag receiving a deterministic colour from the theme palette. Setting an empty value clears all tags. Tags are stored alongside other worktree note metadata (JSON or frontmatter) and are included in filter and search matching, making it straightforward to locate worktrees by label.
 
 When a note exists for a worktree, a note marker appears in the worktree list and the Notes pane (pane 5) becomes visible.
 

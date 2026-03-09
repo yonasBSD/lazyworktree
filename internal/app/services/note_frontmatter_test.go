@@ -154,6 +154,18 @@ func TestFormatNoteFileEmptyTagsNoFrontmatter(t *testing.T) {
 	assert.Contains(t, string(data), "plain note")
 }
 
+func TestNormalizeWorktreeNotesTrimsTagsAndDropsEmpty(t *testing.T) {
+	notes := map[string]models.WorktreeNote{
+		"feature-a": {Tags: []string{" bug ", "", "frontend", "  "}, UpdatedAt: 1},
+		"feature-b": {Tags: []string{" ", "\t"}, UpdatedAt: 1},
+	}
+
+	got := normalizeWorktreeNotes(notes)
+	assert.Equal(t, []string{"bug", "frontend"}, got["feature-a"].Tags)
+	_, ok := got["feature-b"]
+	assert.False(t, ok, "whitespace-only tags should not keep a note alive")
+}
+
 func TestFormatNoteFileColorOnly(t *testing.T) {
 	note := models.WorktreeNote{Color: "#ff0000", UpdatedAt: 1}
 	data := FormatNoteFile(note)

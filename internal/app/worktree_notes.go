@@ -168,8 +168,9 @@ func (m *Model) setWorktreeDescription(path, description string) {
 }
 
 func (m *Model) setWorktreeTags(path string, tags []string) {
+	normalizedTags := models.NormalizeTags(tags)
 	m.updateWorktreeNoteField(path, func(existing models.WorktreeNote) models.WorktreeNote {
-		existing.Tags = tags
+		existing.Tags = normalizedTags
 		return existing
 	})
 }
@@ -271,7 +272,7 @@ func (m *Model) showSetWorktreeDescription() tea.Cmd {
 	return textinput.Blink
 }
 
-// showSetWorktreeTags shows an input screen to set comma-separated tags for the selected worktree.
+// showSetWorktreeTags shows an input screen to set worktree tags.
 func (m *Model) showSetWorktreeTags() tea.Cmd {
 	wt := m.selectedWorktree()
 	if wt == nil {
@@ -285,7 +286,7 @@ func (m *Model) showSetWorktreeTags() tea.Cmd {
 
 	inputScr := appscreen.NewInputScreen(
 		"Set worktree tags",
-		"Comma-separated tags (e.g. bug, frontend, urgent)",
+		"Separate multiple tags with commas (e.g. bug, frontend, urgent)",
 		current,
 		m.theme,
 		m.config.IconsEnabled(),

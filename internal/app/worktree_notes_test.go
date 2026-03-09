@@ -13,12 +13,14 @@ import (
 	"github.com/chmouel/lazyworktree/internal/models"
 )
 
+const testFeatureAPath = "/tmp/worktrees/feature-a"
+
 func TestSetAndLoadWorktreeNotes(t *testing.T) {
 	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
 	m := NewModel(cfg, "")
 	m.repoKey = testRepoKey
 
-	path := "/tmp/worktrees/feature-a"
+	path := testFeatureAPath
 	m.setWorktreeNote(path, "line one\nline two")
 
 	m2 := NewModel(cfg, "")
@@ -39,7 +41,7 @@ func TestSetWorktreeDescriptionRoundTrip(t *testing.T) {
 	m := NewModel(cfg, "")
 	m.repoKey = testRepoKey
 
-	path := "/tmp/worktrees/feature-a"
+	path := testFeatureAPath
 	m.setWorktreeDescription(path, "Fix auth flow")
 
 	note, ok := m.getWorktreeNote(path)
@@ -62,7 +64,7 @@ func TestSetWorktreeDescriptionPreservesOtherFields(t *testing.T) {
 	m := NewModel(cfg, "")
 	m.repoKey = testRepoKey
 
-	path := "/tmp/worktrees/feature-a"
+	path := testFeatureAPath
 	m.setWorktreeNote(path, "my note")
 	m.setWorktreeIcon(path, "🔥")
 	m.setWorktreeDescription(path, "Short desc")
@@ -76,12 +78,34 @@ func TestSetWorktreeDescriptionPreservesOtherFields(t *testing.T) {
 	}
 }
 
+func TestSetWorktreeTagsNormalizesTags(t *testing.T) {
+	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
+	m := NewModel(cfg, "")
+	m.repoKey = testRepoKey
+
+	path := testFeatureAPath
+	m.setWorktreeTags(path, []string{" bug ", "", "frontend", "  "})
+
+	note, ok := m.getWorktreeNote(path)
+	if !ok {
+		t.Fatal("expected note to remain after setting tags")
+	}
+	if strings.Join(note.Tags, ",") != "bug,frontend" {
+		t.Fatalf("unexpected normalized tags: %#v", note.Tags)
+	}
+
+	m.setWorktreeTags(path, []string{" ", ""})
+	if _, ok := m.getWorktreeNote(path); ok {
+		t.Fatal("expected note to be deleted when tags normalise to empty and no other fields remain")
+	}
+}
+
 func TestSetWorktreeNoteClearsEntryWhenEmpty(t *testing.T) {
 	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
 	m := NewModel(cfg, "")
 	m.repoKey = testRepoKey
 
-	path := "/tmp/worktrees/feature-a"
+	path := testFeatureAPath
 	m.setWorktreeNote(path, "keep me")
 	m.setWorktreeNote(path, "   ")
 
@@ -94,7 +118,7 @@ func TestGetWorktreeNoteReturnsNoteWhenOnlyColorSet(t *testing.T) {
 	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
 	m := NewModel(cfg, "")
 	m.repoKey = testRepoKey
-	path := "/tmp/worktrees/feature-a"
+	path := testFeatureAPath
 	m.worktreeNotes = map[string]models.WorktreeNote{
 		worktreeNoteKey(path): {Color: "red", UpdatedAt: 1},
 	}
@@ -112,7 +136,7 @@ func TestSetWorktreeColorPreservesNoteAndIcon(t *testing.T) {
 	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
 	m := NewModel(cfg, "")
 	m.repoKey = testRepoKey
-	path := "/tmp/worktrees/feature-a"
+	path := testFeatureAPath
 	m.setWorktreeNote(path, "my note")
 	m.setWorktreeIcon(path, "🔥")
 
@@ -131,7 +155,7 @@ func TestSetWorktreeColorClearRemovesEntryOnlyWhenAllEmpty(t *testing.T) {
 	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
 	m := NewModel(cfg, "")
 	m.repoKey = testRepoKey
-	path := "/tmp/worktrees/feature-a"
+	path := testFeatureAPath
 
 	// Only color set: clearing removes entry
 	m.setWorktreeColor(path, "red")
@@ -450,7 +474,7 @@ func TestSetAndLoadWorktreeNotesSharedFileUsesRelativeKeys(t *testing.T) {
 func TestUpdateTableSkipsInlineColourOnSelectedRow(t *testing.T) {
 	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
 	m := NewModel(cfg, "")
-	path := "/tmp/worktrees/feature-a"
+	path := testFeatureAPath
 	m.state.data.worktrees = []*models.WorktreeInfo{
 		{Path: path, Branch: "feature-a"},
 	}
@@ -466,5 +490,30 @@ func TestUpdateTableSkipsInlineColourOnSelectedRow(t *testing.T) {
 	}
 	if strings.Contains(rows[0][0], "[38;2;") {
 		t.Fatalf("expected selected row to avoid inline ANSI fragment, got %q", rows[0][0])
+	}
+}
+
+func TestUpdateTableSkipsInlineTagColourOnSelectedRow(t *testing.T) {
+	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
+	m := NewModel(cfg, "")
+	path := testFeatureAPath
+	m.state.data.worktrees = []*models.WorktreeInfo{
+		{Path: path, Branch: "feature-a"},
+	}
+	m.state.ui.worktreeTable.SetCursor(0)
+	m.state.data.selectedIndex = 0
+	m.setWorktreeTags(path, []string{"bug", "frontend"})
+
+	m.updateTable()
+
+	rows := m.state.ui.worktreeTable.Rows()
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 row, got %d", len(rows))
+	}
+	if strings.Contains(rows[0][0], "\x1b[") {
+		t.Fatalf("expected selected row tags to avoid inline ANSI fragments, got %q", rows[0][0])
+	}
+	if !strings.Contains(rows[0][0], "«bug»") || !strings.Contains(rows[0][0], "«frontend»") {
+		t.Fatalf("expected plain tag pills on selected row, got %q", rows[0][0])
 	}
 }

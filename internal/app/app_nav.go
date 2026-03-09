@@ -233,7 +233,11 @@ func (m *Model) updateTable() {
 		// Append tag pills after truncation and colour styling
 		// so truncation never corrupts ANSI sequences
 		if hasNote && len(note.Tags) > 0 {
-			name = name + " " + m.renderTagPills(note.Tags)
+			tagPills := m.renderTagPills(note.Tags)
+			if idx == selectedCursor {
+				tagPills = m.renderPlainTagPills(note.Tags)
+			}
+			name = name + " " + tagPills
 		}
 		statusStr := combinedStatusIndicator(wt.Dirty, wt.HasUpstream, wt.Ahead, wt.Behind, wt.Unpushed, showIcons)
 

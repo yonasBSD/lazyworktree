@@ -325,11 +325,19 @@ func cloneEnvWith(env map[string]string, key, val string) map[string]string {
 // the existing onejson behaviour is used.
 func LoadWorktreeNotes(repoKey, worktreeDir, worktreeNotesPath, noteType string, env map[string]string) (map[string]models.WorktreeNote, error) {
 	if noteType == config.NoteTypeSplitted {
-		return loadSplittedWorktreeNotes(worktreeNotesPath, env)
+		notes, err := loadSplittedWorktreeNotes(worktreeNotesPath, env)
+		if err != nil {
+			return nil, err
+		}
+		return normalizeWorktreeNotes(notes), nil
 	}
 
 	if strings.TrimSpace(worktreeNotesPath) == "" {
-		return loadRepoWorktreeNotes(filepath.Join(worktreeDir, repoKey, models.WorktreeNotesFilename))
+		notes, err := loadRepoWorktreeNotes(filepath.Join(worktreeDir, repoKey, models.WorktreeNotesFilename))
+		if err != nil {
+			return nil, err
+		}
+		return normalizeWorktreeNotes(notes), nil
 	}
 
 	allNotes, err := loadSharedWorktreeNotes(repoKey, worktreeNotesPath)
@@ -340,7 +348,7 @@ func LoadWorktreeNotes(repoKey, worktreeDir, worktreeNotesPath, noteType string,
 	if !ok || repoNotes == nil {
 		return map[string]models.WorktreeNote{}, nil
 	}
-	return repoNotes, nil
+	return normalizeWorktreeNotes(repoNotes), nil
 }
 
 // SaveWorktreeNotes saves worktree notes to file.
@@ -399,6 +407,7 @@ func normalizeWorktreeNotes(notes map[string]models.WorktreeNote) map[string]mod
 		note.Note = strings.TrimSpace(note.Note)
 		note.Icon = strings.TrimSpace(note.Icon)
 		note.Color = worktreecolor.Normalize(note.Color)
+		note.Tags = models.NormalizeTags(note.Tags)
 		if note.IsEmpty() {
 			continue
 		}

@@ -84,9 +84,29 @@ type WorktreeNote struct {
 	UpdatedAt   int64    `json:"updated_at"`
 }
 
+// NormalizeTags trims tags and drops empty entries whilst preserving order.
+func NormalizeTags(tags []string) []string {
+	if len(tags) == 0 {
+		return nil
+	}
+
+	normalized := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		trimmed := strings.TrimSpace(tag)
+		if trimmed == "" {
+			continue
+		}
+		normalized = append(normalized, trimmed)
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
+}
+
 // IsEmpty returns true when every user-visible field is blank (after trimming whitespace).
 func (w WorktreeNote) IsEmpty() bool {
-	return strings.TrimSpace(w.Note) == "" && strings.TrimSpace(w.Icon) == "" && strings.TrimSpace(w.Color) == "" && strings.TrimSpace(w.Description) == "" && len(w.Tags) == 0 && !w.Bold
+	return strings.TrimSpace(w.Note) == "" && strings.TrimSpace(w.Icon) == "" && strings.TrimSpace(w.Color) == "" && strings.TrimSpace(w.Description) == "" && len(NormalizeTags(w.Tags)) == 0 && !w.Bold
 }
 
 const (

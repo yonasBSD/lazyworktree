@@ -97,6 +97,17 @@ func TestRenderTagPills(t *testing.T) {
 	assert.Empty(t, empty)
 }
 
+func TestRenderPlainTagPills(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
+	m := NewModel(cfg, "")
+
+	result := m.renderPlainTagPills([]string{"bug", "frontend"})
+	assert.Equal(t, "«bug» «frontend»", result)
+	assert.NotContains(t, result, "\x1b[")
+}
+
 func TestTagColorDeterminism(t *testing.T) {
 	t.Parallel()
 

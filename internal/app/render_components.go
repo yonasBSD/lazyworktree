@@ -274,16 +274,31 @@ func (m *Model) renderTagPill(tag string) string {
 	return style.Render("«" + tag + "»")
 }
 
-// renderTagPills renders all tags as space-separated pill badges.
-func (m *Model) renderTagPills(tags []string) string {
+// renderPlainTagPill renders a single tag as plain badge text so table
+// selection styling can remain readable.
+func (m *Model) renderPlainTagPill(tag string) string {
+	return "«" + tag + "»"
+}
+
+func joinTagPills(tags []string, render func(string) string) string {
 	if len(tags) == 0 {
 		return ""
 	}
 	pills := make([]string, len(tags))
 	for i, tag := range tags {
-		pills[i] = m.renderTagPill(tag)
+		pills[i] = render(tag)
 	}
 	return strings.Join(pills, " ")
+}
+
+// renderTagPills renders all tags as space-separated coloured pill badges.
+func (m *Model) renderTagPills(tags []string) string {
+	return joinTagPills(tags, m.renderTagPill)
+}
+
+// renderPlainTagPills renders tags without inline ANSI styling.
+func (m *Model) renderPlainTagPills(tags []string) string {
+	return joinTagPills(tags, m.renderPlainTagPill)
 }
 
 // ciConclusionLabel maps a CI conclusion to an uppercase display label.

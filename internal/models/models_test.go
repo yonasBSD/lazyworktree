@@ -160,6 +160,7 @@ func TestWorktreeNoteIsEmpty(t *testing.T) {
 		{name: "with description", note: WorktreeNote{Description: "desc"}, expected: false},
 		{name: "with tags", note: WorktreeNote{Tags: []string{"bug"}}, expected: false},
 		{name: "with empty tags", note: WorktreeNote{Tags: []string{}}, expected: true},
+		{name: "with whitespace tags only", note: WorktreeNote{Tags: []string{" ", "\t"}}, expected: true},
 		{name: "whitespace only", note: WorktreeNote{Note: "  ", Icon: " "}, expected: true},
 		{name: "updated_at only", note: WorktreeNote{UpdatedAt: 123}, expected: true},
 	}
@@ -167,6 +168,25 @@ func TestWorktreeNoteIsEmpty(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.expected, tt.note.IsEmpty())
+		})
+	}
+}
+
+func TestNormalizeTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		tags     []string
+		expected []string
+	}{
+		{name: "nil tags", tags: nil, expected: nil},
+		{name: "empty tags", tags: []string{}, expected: nil},
+		{name: "trim and drop empty", tags: []string{" bug ", "", " frontend ", "   "}, expected: []string{"bug", "frontend"}},
+		{name: "preserve order", tags: []string{"urgent", "bug", "frontend"}, expected: []string{"urgent", "bug", "frontend"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, NormalizeTags(tt.tags))
 		})
 	}
 }
