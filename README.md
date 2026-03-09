@@ -47,7 +47,7 @@ _[You can see more screenshots here](https://chmouel.github.io/lazyworktree/#scr
 - Worktree management — Create worktrees from branches, PRs/MRs, or issues; delete, list, and switch between them
 - CI & PR/MR status — See GitHub Actions and GitLab CI results, check PR/MR details, view logs
 - Notes & taskboard — Write markdown notes per worktree or tasks to track what you're working on; set a short description to replace the directory name in the list
-- Worktree tags — Assign labels via the command palette and separate multiple tags with commas (e.g. "bug,frontend,urgent"); browse existing tags from the palette or filter exactly with `tag:<name>`; tags display as coloured badges after the worktree name
+- Worktree tags — Assign labels via the command palette by typing comma-separated tags or toggling existing labels in the tag editor; use **Browse by worktree tags** from the palette or filter exactly with `tag:<name>`; tags display as coloured badges after the worktree name
 - Command palette — Quick access to all actions and custom commands with `?`, including an explicit **Open commit screen** action; use `_` prefix for palette-only commands
 - Tmux and Zellij support — Automatically open worktrees in new tmux windows/panes or zellij tabs
 - Docker/Podman support — Run commands in Docker or Podman containers tied to the worktree

@@ -499,6 +499,70 @@ func TestShowBrowseWorktreeTagsSelectionAppliesExactFilter(t *testing.T) {
 	}
 }
 
+func TestShowSetWorktreeTagsMixesTypedAndExistingTags(t *testing.T) {
+	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
+	m := NewModel(cfg, "")
+	m.setWindowSize(120, 40)
+	m.repoKey = testRepoKey
+
+	wt1 := filepath.Join(cfg.WorktreeDir, "wt1")
+	wt2 := filepath.Join(cfg.WorktreeDir, "wt2")
+	m.state.data.worktrees = []*models.WorktreeInfo{
+		{Path: wt1, Branch: "feature-one"},
+		{Path: wt2, Branch: "feature-two"},
+	}
+	m.state.data.filteredWts = []*models.WorktreeInfo{
+		{Path: wt1, Branch: "feature-one"},
+		{Path: wt2, Branch: "feature-two"},
+	}
+	m.state.data.selectedIndex = 0
+	m.setWorktreeTags(wt1, []string{"bug"})
+	m.setWorktreeTags(wt2, []string{"frontend"})
+
+	cmd := m.showSetWorktreeTags()
+	if cmd == nil {
+		t.Fatal("showSetWorktreeTags returned nil command")
+	}
+	if !m.state.ui.screenManager.IsActive() || m.state.ui.screenManager.Type() != appscreen.TypeTagEditor {
+		t.Fatalf("expected tag editor screen, got active=%v type=%v", m.state.ui.screenManager.IsActive(), m.state.ui.screenManager.Type())
+	}
+
+	tagScreen := m.state.ui.screenManager.Current().(*appscreen.TagEditorScreen)
+	if got := tagScreen.Input.Value(); got != "bug" {
+		t.Fatalf("expected current tags in input, got %q", got)
+	}
+
+	_, _ = m.handleScreenKey(tea.KeyPressMsg{Code: tea.KeyTab})
+
+	tagScreen = m.state.ui.screenManager.Current().(*appscreen.TagEditorScreen)
+	for tagScreen.Available[tagScreen.Cursor].Tag != "frontend" {
+		_, _ = m.handleScreenKey(tea.KeyPressMsg{Code: tea.KeyDown})
+		tagScreen = m.state.ui.screenManager.Current().(*appscreen.TagEditorScreen)
+	}
+
+	_, _ = m.handleScreenKey(tea.KeyPressMsg{Code: ' ', Text: " "})
+	tagScreen = m.state.ui.screenManager.Current().(*appscreen.TagEditorScreen)
+	tagScreen.Input.SetValue(tagScreen.Input.Value() + ", urgent")
+	tagScreen.Input.CursorEnd()
+
+	_, cmd = m.handleScreenKey(tea.KeyPressMsg{Code: tea.KeyTab})
+	if cmd != nil {
+		_ = cmd()
+	}
+	_, cmd = m.handleScreenKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd != nil {
+		_ = cmd()
+	}
+
+	note, ok := m.getWorktreeNote(wt1)
+	if !ok {
+		t.Fatal("expected note to remain after saving tags")
+	}
+	if got := strings.Join(note.Tags, ","); got != "bug,frontend,urgent" {
+		t.Fatalf("unexpected saved tags: %q", got)
+	}
+}
+
 func TestShowCommandPaletteCommitEntryOpensCommitScreen(t *testing.T) {
 	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
 	m := NewModel(cfg, "")

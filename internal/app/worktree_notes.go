@@ -280,25 +280,24 @@ func (m *Model) showSetWorktreeTags() tea.Cmd {
 	}
 
 	current := ""
+	currentTags := []string(nil)
 	if note, ok := m.getWorktreeNote(wt.Path); ok && len(note.Tags) > 0 {
 		current = strings.Join(note.Tags, ", ")
+		currentTags = append(currentTags, note.Tags...)
 	}
 
-	inputScr := appscreen.NewInputScreen(
+	tagScr := appscreen.NewTagEditorScreen(
 		"Set worktree tags",
-		"Separate multiple tags with commas (e.g. bug, frontend, urgent)",
-		current,
+		currentTags,
+		buildTagEditorOptions(m.worktreeTagStats()),
+		m.state.view.WindowWidth,
+		m.state.view.WindowHeight,
 		m.theme,
 		m.config.IconsEnabled(),
 	)
-	inputScr.OnSubmit = func(value string, _ bool) tea.Cmd {
-		var tags []string
-		for part := range strings.SplitSeq(value, ",") {
-			t := strings.TrimSpace(part)
-			if t != "" {
-				tags = append(tags, t)
-			}
-		}
+	tagScr.Input.SetValue(current)
+	tagScr.Input.CursorEnd()
+	tagScr.OnSubmit = func(tags []string) tea.Cmd {
 		m.setWorktreeTags(wt.Path, tags)
 		m.updateTable()
 		if m.state.data.selectedIndex >= 0 && m.state.data.selectedIndex < len(m.state.data.filteredWts) {
@@ -306,10 +305,10 @@ func (m *Model) showSetWorktreeTags() tea.Cmd {
 		}
 		return nil
 	}
-	inputScr.OnCancel = func() tea.Cmd {
+	tagScr.OnCancel = func() tea.Cmd {
 		return nil
 	}
-	m.state.ui.screenManager.Push(inputScr)
+	m.state.ui.screenManager.Push(tagScr)
 	return textinput.Blink
 }
 

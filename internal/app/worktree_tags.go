@@ -74,7 +74,7 @@ func (m *Model) showBrowseWorktreeTags() tea.Cmd {
 
 	scr := appscreen.NewListSelectionScreen(
 		items,
-		"Browse worktree tags",
+		"Browse by worktree tags",
 		"Filter tags...",
 		"No worktree tags found.",
 		m.state.view.WindowWidth,
@@ -101,4 +101,15 @@ func (m *Model) showBrowseWorktreeTags() tea.Cmd {
 
 	m.state.ui.screenManager.Push(scr)
 	return textinput.Blink
+}
+
+func buildTagEditorOptions(stats []worktreeTagStat) []appscreen.TagEditorOption {
+	options := make([]appscreen.TagEditorOption, len(stats))
+	for i, stat := range stats {
+		options[i] = appscreen.TagEditorOption{
+			Tag:   stat.Tag,
+			Count: stat.Count,
+		}
+	}
+	return options
 }

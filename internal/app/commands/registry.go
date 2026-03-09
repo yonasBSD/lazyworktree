@@ -110,8 +110,8 @@ func RegisterWorktreeActions(r *Registry, h WorktreeHandlers) {
 		CommandAction{ID: "set-icon", Label: "Set worktree icon", Description: "Choose a custom icon for the selected worktree", Section: sectionWorktreeActions, Shortcut: "I", Icon: IconWorktree, Handler: h.SetIcon},
 		CommandAction{ID: "set-color", Label: "Set worktree colour", Description: "Choose a colour for the selected worktree name", Section: sectionWorktreeActions, Icon: IconWorktree, Handler: h.SetColor},
 		CommandAction{ID: "set-description", Label: "Set worktree description", Description: "Set a short label replacing the directory name in the list", Section: sectionWorktreeActions, Icon: IconWorktree, Handler: h.SetDescription},
-		CommandAction{ID: "set-tags", Label: "Set worktree tags", Description: "Set tags; separate multiple tags with commas", Section: sectionWorktreeActions, Icon: IconWorktree, Handler: h.SetTags},
-		CommandAction{ID: "browse-tags", Label: "Browse worktree tags", Description: "Browse existing tags and apply an exact tag filter", Section: sectionWorktreeActions, Icon: IconWorktree, Handler: h.BrowseTags},
+		CommandAction{ID: "set-tags", Label: "Set worktree tags", Description: "Type tags or toggle existing labels in one editor", Section: sectionWorktreeActions, Icon: IconWorktree, Handler: h.SetTags},
+		CommandAction{ID: "browse-tags", Label: "Browse by worktree tags", Description: "Browse worktrees by existing tags and apply an exact tag filter", Section: sectionWorktreeActions, Icon: IconWorktree, Handler: h.BrowseTags},
 		CommandAction{ID: "absorb", Label: "Absorb worktree", Description: "Merge branch into main and remove worktree", Section: sectionWorktreeActions, Shortcut: "A", Icon: IconWorktree, Handler: h.Absorb},
 		CommandAction{ID: "prune", Label: "Prune merged", Description: "Remove merged PR worktrees", Section: sectionWorktreeActions, Shortcut: "X", Icon: IconWorktree, Handler: h.Prune},
 	)

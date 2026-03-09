@@ -41,6 +41,7 @@ const (
 	TypeLoading
 	TypeCommitFiles
 	TypeChecklist
+	TypeTagEditor
 	TypeTaskboard
 	TypeCommitMessage
 )
@@ -84,6 +85,8 @@ func (t Type) String() string {
 		return "commit-files"
 	case TypeChecklist:
 		return "checklist"
+	case TypeTagEditor:
+		return "tag-editor"
 	case TypeTaskboard:
 		return "taskboard"
 	case TypeCommitMessage:
