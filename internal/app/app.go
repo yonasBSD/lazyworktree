@@ -461,7 +461,6 @@ func NewModel(cfg *config.AppConfig, initialFilter string) *Model {
 	statusVp.SetContent("Loading...")
 
 	notesVp := viewport.New(viewport.WithWidth(40), viewport.WithHeight(5))
-	notesVp.SoftWrap = true
 
 	logColumns := []table.Column{
 		{Title: "SHA", Width: 8},

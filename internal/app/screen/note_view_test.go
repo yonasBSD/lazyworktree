@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/chmouel/lazyworktree/internal/theme"
 )
 
@@ -81,5 +83,22 @@ func TestNoteViewScreenWrapsLongLines(t *testing.T) {
 	s := NewNoteViewScreen("Notes", content, 90, 20, theme.Dracula())
 	if !strings.Contains(s.Viewport.View(), "\n") {
 		t.Fatalf("expected wrapped content in viewport view, got %q", s.Viewport.View())
+	}
+}
+
+func TestNoteViewScreenWrapsStyledContentWithoutLeakingANSITails(t *testing.T) {
+	thm := theme.Dracula()
+	content := lipgloss.NewStyle().
+		Foreground(thm.TextFg).
+		Render("- Linked Jira: [SRVKP-10952] " + strings.Repeat("a", 160))
+
+	s := NewNoteViewScreen("Notes", content, 70, 18, thm)
+	plain := ansi.Strip(s.Viewport.View())
+
+	if strings.Contains(plain, "38;2;") {
+		t.Fatalf("expected wrapped viewer content to hide raw ANSI fragments, got %q", plain)
+	}
+	if !strings.Contains(plain, "Linked Jira: [SRVKP-10952]") {
+		t.Fatalf("expected note content to remain visible, got %q", plain)
 	}
 }
