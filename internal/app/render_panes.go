@@ -779,8 +779,13 @@ func (m *Model) buildInfoContent(wt *models.WorktreeInfo) string {
 	infoLines := make([]string, 0, 32)
 	infoLines = addField(infoLines, "Path:", valueStyle.Render(wt.Path))
 	infoLines = addField(infoLines, "Branch:", valueStyle.Render(wt.Branch))
-	if note, ok := m.getWorktreeNote(wt.Path); ok && note.Description != "" {
-		infoLines = addField(infoLines, "Description:", valueStyle.Render(note.Description))
+	if note, ok := m.getWorktreeNote(wt.Path); ok {
+		if note.Description != "" {
+			infoLines = addField(infoLines, "Description:", valueStyle.Render(note.Description))
+		}
+		if normalizedTags := models.NormalizeTags(note.Tags); len(normalizedTags) > 0 {
+			infoLines = addField(infoLines, "Tags:", m.renderTagPills(normalizedTags))
+		}
 	}
 
 	if wt.LastSwitchedTS > 0 {

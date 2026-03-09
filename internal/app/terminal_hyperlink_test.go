@@ -153,6 +153,54 @@ func TestBuildInfoContentNoUpstreamHidesPRSection(t *testing.T) {
 	}
 }
 
+func TestBuildInfoContentShowsWorktreeTagsWhenPresent(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.WorktreeDir = t.TempDir()
+	m := NewModel(cfg, "")
+
+	wt := &models.WorktreeInfo{
+		Path:   "/tmp/tagged",
+		Branch: "feature/tags",
+	}
+	m.worktreeNotes[worktreeNoteKey(wt.Path)] = models.WorktreeNote{
+		Description: "Tagged worktree",
+		Tags:        []string{" bug ", "frontend"},
+	}
+
+	info := stripTerminalSequences(m.buildInfoContent(wt))
+	if !strings.Contains(info, "Description:") || !strings.Contains(info, "Tagged worktree") {
+		t.Fatalf("expected description in info pane, got %q", info)
+	}
+	if !strings.Contains(info, "Tags:") {
+		t.Fatalf("expected tags label in info pane, got %q", info)
+	}
+	if !strings.Contains(info, "«bug» «frontend»") {
+		t.Fatalf("expected tag pills in info pane, got %q", info)
+	}
+}
+
+func TestBuildInfoContentHidesWorktreeTagsWhenEmpty(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.WorktreeDir = t.TempDir()
+	m := NewModel(cfg, "")
+
+	wt := &models.WorktreeInfo{
+		Path:   "/tmp/untagged",
+		Branch: "feature/no-tags",
+	}
+	m.worktreeNotes[worktreeNoteKey(wt.Path)] = models.WorktreeNote{
+		Tags: []string{" ", "\t"},
+	}
+
+	info := stripTerminalSequences(m.buildInfoContent(wt))
+	if strings.Contains(info, "Tags:") {
+		t.Fatalf("did not expect empty tags row in info pane, got %q", info)
+	}
+	if strings.Contains(info, "«") {
+		t.Fatalf("did not expect tag pills in info pane, got %q", info)
+	}
+}
+
 func TestBuildNotesContentAnnotationKeywordsUppercaseWithIconTextSet(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.WorktreeDir = t.TempDir()
