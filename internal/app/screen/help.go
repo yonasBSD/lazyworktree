@@ -128,7 +128,7 @@ Commit Status Indicators:
 - Tab / Shift+Tab: Move focus to the "Include current file changes" checkbox
 - Space: Toggle "Include current file changes"
 - i: Open selected worktree notes (viewer if present, editor if empty)
-- I: Set custom worktree icon
+- I: Set custom worktree icon (for task types such as feature, bug, TODO, review, or release)
 - Command palette: Set worktree colour (picker plus Custom for hex, supported named colours, or 256 indices; stored in notes/frontmatter)
 - Note viewer: j/k scroll, Ctrl+D/Ctrl+U half-page, g/G top/bottom, e edit, E edit in external editor, q/Esc close
 - Note editor: Ctrl+S saves, Ctrl+X opens in external editor, Enter adds a new line, Esc cancels

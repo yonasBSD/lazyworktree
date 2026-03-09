@@ -38,6 +38,12 @@ To return to the default icon, choose **Default Folder** in the picker.
 ### Practical use cases
 
 - Use `🐛` or `` for bug-fix worktrees.
+- Use `📋`, ``, or `󰄲` for TODO queues and follow-up work.
+- Use `🔧` or `󰊢` for patching and hotfix work.
+- Use `🧹` or `󰑓` for refactors and cleanup passes.
+- Use `🧪` or `󰙨` for test-only and verification worktrees.
+- Use `🔍` or `󰦓` for review, triage, and investigation work.
+- Use `🛑`, `󰀪`, or `󱈸` for blocked or urgent work.
 - Use `📚` for documentation updates.
 - Use `` or `󱃾` for infrastructure and platform changes.
 - Use `🚀` or `󰜎` for feature delivery streams.
