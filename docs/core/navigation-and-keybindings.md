@@ -62,6 +62,7 @@ Press `=` to toggle zoom for the focused pane, expanding it to fill the entire s
 - `I` — set a custom icon for the selected worktree
 - Command palette only: **Set worktree colour** (picker plus `Custom…` for hex, supported named colours, or 256 indices)
 - Command palette only: **Set worktree tags** (enter labels and separate multiple tags with commas, e.g. "bug,frontend,urgent"; displayed as coloured badges and included in filter/search)
+- Command palette only: **Browse worktree tags** (lists all existing tags with counts and applies an exact `tag:<name>` worktree filter)
 
 ### Git Status Pane
 
@@ -95,6 +96,9 @@ Each commit displays a status indicator: `↑` (red) for unpushed commits, `★`
 
 !!! tip
     Filter mode works across worktrees, files, and commits. Use `Alt+n`/`Alt+p` to navigate matches whilst updating the filter input, or arrow keys to navigate without changing it.
+
+!!! tip
+    In the worktree pane, `tag:<name>` applies an exact tag filter. Use **Browse worktree tags** from the command palette if you do not remember the available labels.
 
 ## Command Access
 

@@ -147,36 +147,23 @@ func sortWorktrees(wts []*models.WorktreeInfo, mode int) {
 
 func (m *Model) updateTable() {
 	// Filter worktrees
-	query := strings.ToLower(strings.TrimSpace(m.state.services.filter.FilterQuery))
+	query := strings.TrimSpace(m.state.services.filter.FilterQuery)
+	parsedQuery := parseWorktreeFilterQuery(query)
 	m.state.data.filteredWts = []*models.WorktreeInfo{}
 
 	if query == "" {
 		m.state.data.filteredWts = make([]*models.WorktreeInfo, len(m.state.data.worktrees))
 		copy(m.state.data.filteredWts, m.state.data.worktrees)
 	} else {
-		hasPathSep := strings.Contains(query, "/")
 		for _, wt := range m.state.data.worktrees {
-			name := filepath.Base(wt.Path)
-			if wt.IsMain {
-				name = mainWorktreeName
-			}
-			haystacks := []string{strings.ToLower(name), strings.ToLower(wt.Branch)}
+			var note models.WorktreeNote
+			hasNote := false
 			if n, ok := m.getWorktreeNote(wt.Path); ok {
-				if n.Description != "" {
-					haystacks = append(haystacks, strings.ToLower(n.Description))
-				}
-				if len(n.Tags) > 0 {
-					haystacks = append(haystacks, strings.ToLower(strings.Join(n.Tags, " ")))
-				}
+				note = n
+				hasNote = true
 			}
-			if hasPathSep {
-				haystacks = append(haystacks, strings.ToLower(wt.Path))
-			}
-			for _, haystack := range haystacks {
-				if strings.Contains(haystack, query) {
-					m.state.data.filteredWts = append(m.state.data.filteredWts, wt)
-					break
-				}
+			if worktreeMatchesFilter(wt, note, hasNote, parsedQuery) {
+				m.state.data.filteredWts = append(m.state.data.filteredWts, wt)
 			}
 		}
 	}

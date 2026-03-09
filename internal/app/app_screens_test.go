@@ -401,7 +401,7 @@ func TestShowCommandPaletteHasAllActions(t *testing.T) {
 	}
 
 	expectedIDs := []string{
-		"create", "delete", "rename", "annotate", "absorb", "prune",
+		"create", "delete", "rename", "annotate", "browse-tags", "absorb", "prune",
 		"create-from-current", "create-from-branch", "create-from-commit",
 		"create-from-pr", "create-from-issue", "create-freeform",
 		"diff", "refresh", "fetch", "push", "sync", "fetch-pr-data", "pr", "lazygit", "run-command",
@@ -423,6 +423,79 @@ func TestShowCommandPaletteHasAllActions(t *testing.T) {
 		if !itemIDs[expectedID] {
 			t.Errorf("expected palette item %q not found", expectedID)
 		}
+	}
+}
+
+func TestShowBrowseWorktreeTagsShowsSortedTagCounts(t *testing.T) {
+	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
+	m := NewModel(cfg, "")
+	m.setWindowSize(120, 40)
+
+	wt1 := filepath.Join(cfg.WorktreeDir, "wt1")
+	wt2 := filepath.Join(cfg.WorktreeDir, "wt2")
+	wt3 := filepath.Join(cfg.WorktreeDir, "wt3")
+	m.state.data.worktrees = []*models.WorktreeInfo{
+		{Path: wt1, Branch: "feature-one"},
+		{Path: wt2, Branch: "feature-two"},
+		{Path: wt3, Branch: "feature-three"},
+	}
+	m.setWorktreeTags(wt1, []string{"bug", "frontend"})
+	m.setWorktreeTags(wt2, []string{"bug"})
+	m.setWorktreeTags(wt3, []string{"backend"})
+
+	cmd := m.showBrowseWorktreeTags()
+	if cmd == nil {
+		t.Fatal("showBrowseWorktreeTags returned nil command")
+	}
+	if !m.state.ui.screenManager.IsActive() || m.state.ui.screenManager.Type() != appscreen.TypeListSelect {
+		t.Fatal("expected list selection screen")
+	}
+
+	listScreen := m.state.ui.screenManager.Current().(*appscreen.ListSelectionScreen)
+	if len(listScreen.Items) != 3 {
+		t.Fatalf("expected 3 tag items, got %d", len(listScreen.Items))
+	}
+	if listScreen.Items[0].ID != "bug" || listScreen.Items[0].Description != "2 worktrees" {
+		t.Fatalf("expected bug first with count, got %#v", listScreen.Items[0])
+	}
+	if listScreen.Items[1].ID != "backend" {
+		t.Fatalf("expected alphabetical tie-break after bug, got %#v", listScreen.Items[1])
+	}
+}
+
+func TestShowBrowseWorktreeTagsSelectionAppliesExactFilter(t *testing.T) {
+	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
+	m := NewModel(cfg, "")
+	m.setWindowSize(120, 40)
+
+	wt1 := filepath.Join(cfg.WorktreeDir, "wt1")
+	wt2 := filepath.Join(cfg.WorktreeDir, "wt2")
+	m.state.data.worktrees = []*models.WorktreeInfo{
+		{Path: wt1, Branch: "feature-one"},
+		{Path: wt2, Branch: "feature-two"},
+	}
+	m.setWorktreeTags(wt1, []string{"bug"})
+	m.setWorktreeTags(wt2, []string{"frontend"})
+
+	m.showBrowseWorktreeTags()
+	listScreen := m.state.ui.screenManager.Current().(*appscreen.ListSelectionScreen)
+	cmd := listScreen.OnSelect(appscreen.SelectionItem{ID: "bug", Label: "bug"})
+	if cmd == nil {
+		t.Fatal("expected selection command")
+	}
+	_ = cmd()
+
+	if !m.state.view.ShowingFilter {
+		t.Fatal("expected worktree filter to be visible after tag selection")
+	}
+	if got := m.state.services.filter.FilterQuery; got != "tag:bug" {
+		t.Fatalf("expected filter query tag:bug, got %q", got)
+	}
+	if got := m.state.ui.filterInput.Value(); got != "tag:bug" {
+		t.Fatalf("expected visible filter input tag:bug, got %q", got)
+	}
+	if len(m.state.data.filteredWts) != 1 || m.state.data.filteredWts[0].Path != wt1 {
+		t.Fatalf("expected exact tag filter to keep only wt1, got %#v", m.state.data.filteredWts)
 	}
 }
 

@@ -141,6 +141,7 @@ func (m *Model) registerPaletteActions(registry *commands.Registry) {
 		SetColor:          m.showSetWorktreeColor,
 		SetDescription:    m.showSetWorktreeDescription,
 		SetTags:           m.showSetWorktreeTags,
+		BrowseTags:        m.showBrowseWorktreeTags,
 		Absorb:            m.showAbsorbWorktree,
 		Prune:             m.showPruneMerged,
 		CreateFromCurrent: m.showCreateFromCurrent,

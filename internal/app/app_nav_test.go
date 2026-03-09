@@ -16,6 +16,50 @@ import (
 
 const testNavFilterQuery = "test"
 
+func TestParseWorktreeFilterQuery(t *testing.T) {
+	parsed := parseWorktreeFilterQuery("tag:bug auth tag:frontend")
+
+	if strings.Join(parsed.tagTerms, ",") != "bug,frontend" {
+		t.Fatalf("unexpected tag terms: %#v", parsed.tagTerms)
+	}
+	if strings.Join(parsed.textTerms, ",") != "auth" {
+		t.Fatalf("unexpected text terms: %#v", parsed.textTerms)
+	}
+}
+
+func TestWorktreeMatchesFilter(t *testing.T) {
+	wt := &models.WorktreeInfo{
+		Path:   "/repo/feature-auth",
+		Branch: "feature/auth",
+	}
+	note := models.WorktreeNote{
+		Description: "Auth fixes",
+		Tags:        []string{"bug", "frontend"},
+	}
+
+	tests := []struct {
+		name     string
+		query    string
+		expected bool
+	}{
+		{name: "exact tag match", query: "tag:bug", expected: true},
+		{name: "multiple exact tags", query: "tag:bug tag:frontend", expected: true},
+		{name: "missing exact tag", query: "tag:urgent", expected: false},
+		{name: "mixed exact tag and text term", query: "tag:bug auth", expected: true},
+		{name: "mixed exact tag and unmatched text term", query: "tag:bug payments", expected: false},
+		{name: "plain text still searches tags", query: "front", expected: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := worktreeMatchesFilter(wt, note, true, parseWorktreeFilterQuery(tt.query))
+			if got != tt.expected {
+				t.Fatalf("expected %v, got %v", tt.expected, got)
+			}
+		})
+	}
+}
+
 func TestWorkspaceNameTruncation(t *testing.T) {
 	tests := []struct {
 		name          string

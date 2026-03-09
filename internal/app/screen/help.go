@@ -134,6 +134,7 @@ Commit Status Indicators:
 - Note editor: Ctrl+S saves, Ctrl+X opens in external editor, Enter adds a new line, Esc cancels
 - Command palette: Set worktree description — a short label that replaces the directory name in the worktree list for display
 - Command palette: Set worktree tags — enter labels separated by commas (e.g. "bug,frontend,urgent"); tags are displayed as coloured badges after the worktree name and remain searchable/filterable
+- Command palette: Browse worktree tags — lists existing tags with counts and applies an exact tag:<name> worktree filter
 - T: Open Taskboard (grouped by worktree from markdown checkbox notes)
 - Taskboard: a adds a new task, Enter/Space toggles selected checkbox task, f filters tasks, q/Esc closes
 - Worktrees with non-empty notes show a note marker beside the name
@@ -141,6 +142,7 @@ Commit Status Indicators:
 - worktree_note_type: splitted stores each note as an individual markdown file with YAML frontmatter at a template path
 - In the Info pane, notes render Markdown for headings, bold text, inline code, lists, quotes, links, and fenced code blocks
 - Uppercase note tags such as TODO, FIXME, or WARNING: are highlighted with icons outside fenced code blocks; lowercase tags are left unchanged
+- Worktree filter: use tag:<name> for exact tag matches
 - m: Rename selected worktree
 - D: Delete selected worktree
 - A: Absorb worktree into main (merge or rebase based on configuration, then delete)
