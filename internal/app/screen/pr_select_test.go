@@ -20,8 +20,8 @@ func TestNewPRSelectionScreen(t *testing.T) {
 		t.Errorf("expected Type to be TypePRSelect, got %v", scr.Type())
 	}
 
-	if len(scr.Filtered) != 2 {
-		t.Errorf("expected 2 filtered PRs, got %d", len(scr.Filtered))
+	if len(scr.FilteredPRs()) != 2 {
+		t.Errorf("expected 2 filtered PRs, got %d", len(scr.FilteredPRs()))
 	}
 
 	if scr.Cursor != 0 {
@@ -37,13 +37,12 @@ func TestPRSelectionScreenNavigation(t *testing.T) {
 	}
 	scr := NewPRSelectionScreen(prs, 80, 30, theme.Dracula(), true)
 
-	// Test direct cursor manipulation instead of Update to simplify testing
 	scr.Cursor = 1
 	if scr.Cursor != 1 {
 		t.Errorf("expected cursor to be 1, got %d", scr.Cursor)
 	}
 
-	pr, ok := scr.Selected()
+	pr, ok := scr.SelectedPR()
 	if !ok || pr.Number != 2 {
 		t.Error("expected to select second PR")
 	}
@@ -61,28 +60,31 @@ func TestPRSelectionScreenFiltering(t *testing.T) {
 	scr.FilterInput.SetValue("feature")
 	scr.applyFilter()
 
-	if len(scr.Filtered) != 2 {
-		t.Errorf("expected 2 filtered PRs matching 'feature', got %d", len(scr.Filtered))
+	filtered := scr.FilteredPRs()
+	if len(filtered) != 2 {
+		t.Errorf("expected 2 filtered PRs matching 'feature', got %d", len(filtered))
 	}
 
 	// Filter by number
 	scr.FilterInput.SetValue("456")
 	scr.applyFilter()
 
-	if len(scr.Filtered) != 1 {
-		t.Errorf("expected 1 filtered PR matching '456', got %d", len(scr.Filtered))
+	filtered = scr.FilteredPRs()
+	if len(filtered) != 1 {
+		t.Errorf("expected 1 filtered PR matching '456', got %d", len(filtered))
 	}
 
-	if scr.Filtered[0].Number != 456 {
-		t.Errorf("expected filtered PR to have number 456, got %d", scr.Filtered[0].Number)
+	if filtered[0].Number != 456 {
+		t.Errorf("expected filtered PR to have number 456, got %d", filtered[0].Number)
 	}
 
 	// Clear filter
 	scr.FilterInput.SetValue("")
 	scr.applyFilter()
 
-	if len(scr.Filtered) != 3 {
-		t.Errorf("expected all 3 PRs after clearing filter, got %d", len(scr.Filtered))
+	filtered = scr.FilteredPRs()
+	if len(filtered) != 3 {
+		t.Errorf("expected all 3 PRs after clearing filter, got %d", len(filtered))
 	}
 }
 
@@ -95,20 +97,41 @@ func TestPRSelectionScreenRanksNumberAndTitleMatches(t *testing.T) {
 
 	scr.FilterInput.SetValue("45")
 	scr.applyFilter()
-	if len(scr.Filtered) != 2 {
-		t.Fatalf("expected two PR matches, got %d", len(scr.Filtered))
+	filtered := scr.FilteredPRs()
+	if len(filtered) != 2 {
+		t.Fatalf("expected two PR matches, got %d", len(filtered))
 	}
-	if scr.Filtered[0].Number != 45 {
-		t.Fatalf("expected exact number match first, got #%d", scr.Filtered[0].Number)
+	if filtered[0].Number != 45 {
+		t.Fatalf("expected exact number match first, got #%d", filtered[0].Number)
 	}
 
 	scr.FilterInput.SetValue("browse")
 	scr.applyFilter()
-	if scr.Filtered[0].Number != 451 {
-		t.Fatalf("expected stronger title match first, got #%d", scr.Filtered[0].Number)
+	filtered = scr.FilteredPRs()
+	if filtered[0].Number != 451 {
+		t.Fatalf("expected stronger title match first, got #%d", filtered[0].Number)
 	}
 	if scr.Cursor != 0 {
 		t.Fatalf("expected cursor to reset to first ranked PR, got %d", scr.Cursor)
+	}
+}
+
+func TestPRSelectionScreenPrefersPRNumberOverTitleConflict(t *testing.T) {
+	prs := []*models.PRInfo{
+		{Number: 45, Title: "General cleanup"},
+		{Number: 99, Title: "45 cleanup"},
+	}
+	scr := NewPRSelectionScreen(prs, 80, 30, theme.Dracula(), true)
+
+	scr.FilterInput.SetValue("45")
+	scr.applyFilter()
+
+	filtered := scr.FilteredPRs()
+	if len(filtered) != 2 {
+		t.Fatalf("expected two PR matches, got %d", len(filtered))
+	}
+	if filtered[0].Number != 45 {
+		t.Fatalf("expected PR number match to rank before title match, got #%d", filtered[0].Number)
 	}
 }
 
@@ -138,8 +161,9 @@ func TestPRSelectionScreenFilterToggle(t *testing.T) {
 		t.Fatal("expected Update to return PR selection screen after typing")
 	}
 	scr = nextScr
-	if len(scr.Filtered) != 1 || scr.Filtered[0].Number != 2 {
-		t.Fatalf("expected filtered results to include only #2, got %v", scr.Filtered)
+	filtered := scr.FilteredPRs()
+	if len(filtered) != 1 || filtered[0].Number != 2 {
+		t.Fatalf("expected filtered results to include only #2, got %v", filtered)
 	}
 
 	next, _ = scr.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -151,8 +175,9 @@ func TestPRSelectionScreenFilterToggle(t *testing.T) {
 	if scr.FilterActive {
 		t.Fatal("expected filter to be inactive after Esc")
 	}
-	if len(scr.Filtered) != 1 || scr.Filtered[0].Number != 2 {
-		t.Fatalf("expected filter to remain applied after Esc, got %v", scr.Filtered)
+	filtered = scr.FilteredPRs()
+	if len(filtered) != 1 || filtered[0].Number != 2 {
+		t.Fatalf("expected filter to remain applied after Esc, got %v", filtered)
 	}
 }
 
@@ -163,30 +188,27 @@ func TestPRSelectionScreenSelection(t *testing.T) {
 	}
 	scr := NewPRSelectionScreen(prs, 80, 30, theme.Dracula(), true)
 
-	// Test selection
-	pr, ok := scr.Selected()
+	pr, ok := scr.SelectedPR()
 	if !ok {
-		t.Fatal("expected Selected to return true")
+		t.Fatal("expected SelectedPR to return true")
 	}
 	if pr.Number != 1 {
 		t.Errorf("expected selected PR to have number 1, got %d", pr.Number)
 	}
 
-	// Move cursor and select again
 	scr.Cursor = 1
-	pr, ok = scr.Selected()
+	pr, ok = scr.SelectedPR()
 	if !ok {
-		t.Fatal("expected Selected to return true")
+		t.Fatal("expected SelectedPR to return true")
 	}
 	if pr.Number != 2 {
 		t.Errorf("expected selected PR to have number 2, got %d", pr.Number)
 	}
 
-	// Test out of bounds
 	scr.Cursor = 99
-	_, ok = scr.Selected()
+	_, ok = scr.SelectedPR()
 	if ok {
-		t.Error("expected Selected to return false for out of bounds cursor")
+		t.Error("expected SelectedPR to return false for out of bounds cursor")
 	}
 }
 
@@ -196,10 +218,9 @@ func TestPRSelectionScreenCallbacks(t *testing.T) {
 	}
 	scr := NewPRSelectionScreen(prs, 80, 30, theme.Dracula(), true)
 
-	// Test OnSelect callback
 	selectCalled := false
 	var selectedPR *models.PRInfo
-	scr.OnSelect = func(pr *models.PRInfo) tea.Cmd {
+	scr.OnSelectPR = func(pr *models.PRInfo) tea.Cmd {
 		selectCalled = true
 		selectedPR = pr
 		return nil
@@ -210,7 +231,7 @@ func TestPRSelectionScreenCallbacks(t *testing.T) {
 		t.Error("expected screen to close (return nil) on Enter")
 	}
 	if !selectCalled {
-		t.Error("expected OnSelect callback to be called")
+		t.Error("expected OnSelectPR callback to be called")
 	}
 	if selectedPR == nil || selectedPR.Number != 1 {
 		t.Error("expected selectedPR to be the first PR")
@@ -244,7 +265,6 @@ func TestPRSelectionScreenView(t *testing.T) {
 		t.Error("expected View to return non-empty string")
 	}
 
-	// Check for expected content
 	if !strings.Contains(view, "Test PR") {
 		t.Error("expected view to contain PR title")
 	}
@@ -276,9 +296,6 @@ func TestPRSelectionScreenCIStatusColoring(t *testing.T) {
 	scr := NewPRSelectionScreen(prs, 100, 30, theme.Dracula(), true)
 
 	view := scr.View()
-
-	// Should contain success/failure/pending/draft indicators
-	// The actual rendering includes colored CI icons
 	if view == "" {
 		t.Error("expected non-empty view")
 	}
@@ -312,10 +329,9 @@ func TestPRSelectionScreenEmptyList(t *testing.T) {
 		t.Error("expected view to show 'No open PRs' message")
 	}
 
-	// Should not be able to select anything
-	_, ok := scr.Selected()
+	_, ok := scr.SelectedPR()
 	if ok {
-		t.Error("expected Selected to return false for empty list")
+		t.Error("expected SelectedPR to return false for empty list")
 	}
 }
 
@@ -341,12 +357,10 @@ func TestPRSelectionScreenAttachedBranches(t *testing.T) {
 	}
 	scr := NewPRSelectionScreen(prs, 100, 30, theme.Dracula(), true)
 
-	// Set attached branches map
 	scr.AttachedBranches = map[string]string{
 		"attached-branch": "my-worktree",
 	}
 
-	// Test isAttached helper
 	wtName, attached := scr.isAttached(prs[0])
 	if attached {
 		t.Error("expected first PR to not be attached")
@@ -363,7 +377,6 @@ func TestPRSelectionScreenAttachedBranches(t *testing.T) {
 		t.Errorf("expected worktree name 'my-worktree', got %q", wtName)
 	}
 
-	// View should show the worktree info for attached PR
 	view := scr.View()
 	if !strings.Contains(view, "(in: my-worktree)") {
 		t.Error("expected view to show worktree info for attached PR")
@@ -376,29 +389,22 @@ func TestPRSelectionScreenAttachedPRSelectable(t *testing.T) {
 	}
 	scr := NewPRSelectionScreen(prs, 100, 30, theme.Dracula(), true)
 
-	// Set attached branches map
 	scr.AttachedBranches = map[string]string{
 		"attached-branch": "my-worktree",
 	}
 
-	// Track if OnSelect was called
 	selectCalled := false
-	scr.OnSelect = func(pr *models.PRInfo) tea.Cmd {
+	scr.OnSelectPR = func(pr *models.PRInfo) tea.Cmd {
 		selectCalled = true
 		return nil
 	}
 
-	// Select the attached PR
 	result, _ := scr.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-
-	// Screen should close and delegate handling to OnSelect
 	if result != nil {
 		t.Error("expected screen to close when selecting attached PR")
 	}
-
-	// OnSelect should be called so the model can handle attached branch behaviour.
 	if !selectCalled {
-		t.Error("expected OnSelect callback to be called for attached PR")
+		t.Error("expected OnSelectPR callback to be called for attached PR")
 	}
 }
 
@@ -409,24 +415,18 @@ func TestPRSelectionScreenStatusMessageClearedOnNavigation(t *testing.T) {
 	}
 	scr := NewPRSelectionScreen(prs, 100, 30, theme.Dracula(), true)
 
-	// Set a status message
 	scr.StatusMessage = "Some error message"
 
-	// Navigate down
 	scr.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 
-	// Status message should be cleared
 	if scr.StatusMessage != "" {
 		t.Errorf("expected status message to be cleared on navigation, got %q", scr.StatusMessage)
 	}
 
-	// Set message again
 	scr.StatusMessage = "Another message"
 
-	// Navigate up
 	scr.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 
-	// Status message should be cleared
 	if scr.StatusMessage != "" {
 		t.Errorf("expected status message to be cleared on navigation, got %q", scr.StatusMessage)
 	}

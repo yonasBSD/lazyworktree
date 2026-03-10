@@ -187,8 +187,7 @@ func runTUI(_ context.Context, cmd *cli.Command) error {
 		if selectedPath != "" {
 			data = selectedPath + "\n"
 		}
-		const defaultFilePerms = 0o600
-		if err := os.WriteFile(expanded, []byte(data), defaultFilePerms); err != nil {
+		if err := os.WriteFile(expanded, []byte(data), utils.DefaultFilePerms); err != nil {
 			fmt.Fprintf(os.Stderr, "Error writing output-selection: %v\n", err)
 			_ = log.Close()
 			return err

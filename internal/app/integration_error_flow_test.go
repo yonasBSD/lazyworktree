@@ -63,10 +63,10 @@ func TestIntegrationCreateFromPRValidationErrors(t *testing.T) {
 		t.Fatal("expected PRSelectionScreen to be set")
 	}
 
-	if prScreen.OnSelect == nil {
+	if prScreen.OnSelectPR == nil {
 		t.Fatal("expected OnSelect callback to be set")
 	}
-	cmd := prScreen.OnSelect(missingBranch)
+	cmd := prScreen.OnSelectPR(missingBranch)
 	if cmd != nil {
 		t.Fatal("expected missing-branch PR selection to fail immediately")
 	}
@@ -89,7 +89,7 @@ func TestIntegrationCreateFromPRValidationErrors(t *testing.T) {
 	m.updateTable()
 
 	prScreen = m.state.ui.screenManager.Current().(*appscreen.PRSelectionScreen)
-	cmd = prScreen.OnSelect(withBranch)
+	cmd = prScreen.OnSelectPR(withBranch)
 	if cmd != nil {
 		t.Fatal("expected attached-branch PR selection to fail immediately")
 	}
@@ -111,7 +111,7 @@ func TestIntegrationCreateFromPRValidationErrors(t *testing.T) {
 	m = updated.(*Model)
 
 	prScreen = m.state.ui.screenManager.Current().(*appscreen.PRSelectionScreen)
-	cmd = prScreen.OnSelect(withBranch)
+	cmd = prScreen.OnSelectPR(withBranch)
 	if cmd != nil {
 		t.Fatal("expected existing-path PR selection to fail immediately")
 	}

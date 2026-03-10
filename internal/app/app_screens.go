@@ -414,7 +414,7 @@ func (m *Model) UpdateTheme(themeName string) {
 		case *appscreen.InputScreen:
 			scr.Thm = thm
 		case *appscreen.PRSelectionScreen:
-			scr.Thm = thm
+			scr.Thm = thm // sets embedded ListSelectionScreen.Thm
 		case *appscreen.ListSelectionScreen:
 			scr.Thm = thm
 		case *appscreen.ChecklistScreen:

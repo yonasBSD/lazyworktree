@@ -1446,7 +1446,7 @@ func SaveConfig(cfg *AppConfig) error {
 		newData = []byte(content + newThemeLine + "\n")
 	}
 
-	if err := os.WriteFile(path, newData, 0o600); err != nil {
+	if err := os.WriteFile(path, newData, utils.DefaultFilePerms); err != nil {
 		return err
 	}
 

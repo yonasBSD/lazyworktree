@@ -4,6 +4,8 @@ import (
 	"log"
 	"os"
 	"sync"
+
+	"github.com/chmouel/lazyworktree/internal/utils"
 )
 
 // DebugLogger handles debug logging to file and/or buffering.
@@ -65,7 +67,7 @@ func SetFile(path string) error {
 		return nil
 	}
 
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600) //nolint:gosec
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, utils.DefaultFilePerms) //nolint:gosec
 	if err != nil {
 		globalDebugLogger.discard = true
 		globalDebugLogger.buffer = nil

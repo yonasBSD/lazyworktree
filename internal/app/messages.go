@@ -403,7 +403,7 @@ func (m *Model) handleOpenPRsLoaded(msg openPRsLoadedMsg) tea.Cmd {
 	// Show PR selection screen
 	prScr := screen.NewPRSelectionScreen(msg.prs, m.state.view.WindowWidth, m.state.view.WindowHeight, m.theme, m.config.IconsEnabled())
 	prScr.AttachedBranches = attachedBranches
-	prScr.OnSelect = func(pr *models.PRInfo) tea.Cmd {
+	prScr.OnSelectPR = func(pr *models.PRInfo) tea.Cmd {
 		remoteBranch := strings.TrimSpace(pr.Branch)
 		if remoteBranch == "" {
 			m.showInfo(errPRBranchMissing, nil)

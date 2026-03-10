@@ -414,7 +414,7 @@ func (m *Model) openCommitInExternalEditor(wt *models.WorktreeInfo, commitText s
 
 	tmpPath := filepath.Join(os.TempDir(), "COMMIT_EDITMSG")
 	// #nosec G304 -- tmpPath is derived from os.TempDir with a fixed file name
-	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, defaultFilePerms)
 	if err != nil {
 		return func() tea.Msg { return errMsg{err: err} }
 	}

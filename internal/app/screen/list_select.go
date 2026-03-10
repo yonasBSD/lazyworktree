@@ -49,6 +49,18 @@ type ListSelectionScreen struct {
 
 	// Optional additional hint for footer (e.g., "Ctrl+r to restart")
 	FooterHint string
+
+	// FilterFields returns ranked filter fields for an item. Earlier fields rank higher.
+	FilterFields func(item SelectionItem) []string
+
+	// Custom item renderer (overrides default rendering)
+	RenderItem func(item SelectionItem, index int, isCursor bool) string
+
+	// StatusMessage shows temporary feedback (cleared on navigation)
+	StatusMessage string
+
+	// EmptyMessage is shown when Items is empty (as opposed to NoResults for empty filter results)
+	EmptyMessage string
 }
 
 // NewListSelectionScreen builds a list selection screen with 80% of screen size.
@@ -159,6 +171,7 @@ func (s *ListSelectionScreen) Update(msg tea.KeyPressMsg) (Screen, tea.Cmd) {
 			}
 			return nil, nil
 		case "up", "k", "ctrl+k":
+			s.StatusMessage = ""
 			if s.Cursor > 0 {
 				s.Cursor--
 				if s.Cursor < s.ScrollOffset {
@@ -172,6 +185,7 @@ func (s *ListSelectionScreen) Update(msg tea.KeyPressMsg) (Screen, tea.Cmd) {
 			}
 			return s, nil
 		case "down", "j", "ctrl+j":
+			s.StatusMessage = ""
 			if s.Cursor < len(s.Filtered)-1 {
 				s.Cursor++
 				if s.Cursor >= s.ScrollOffset+maxVisible {
@@ -226,6 +240,7 @@ func (s *ListSelectionScreen) Update(msg tea.KeyPressMsg) (Screen, tea.Cmd) {
 		}
 		return nil, nil
 	case "up", "ctrl+k":
+		s.StatusMessage = ""
 		if s.Cursor > 0 {
 			s.Cursor--
 			if s.Cursor < s.ScrollOffset {
@@ -239,6 +254,7 @@ func (s *ListSelectionScreen) Update(msg tea.KeyPressMsg) (Screen, tea.Cmd) {
 		}
 		return s, nil
 	case "down", "ctrl+j":
+		s.StatusMessage = ""
 		if s.Cursor < len(s.Filtered)-1 {
 			s.Cursor++
 			if s.Cursor >= s.ScrollOffset+maxVisible {
@@ -318,28 +334,37 @@ func (s *ListSelectionScreen) View() string {
 
 	for i := start; i < end; i++ {
 		item := s.Filtered[i]
-		label := item.Label
-		if item.Description != "" {
-			desc := item.Description
-			if i == s.Cursor {
-				desc = selectedDescStyle.Render(desc)
-			} else {
-				desc = descStyle.Render(desc)
-			}
-			label = fmt.Sprintf("%s  %s", label, desc)
-		}
 
 		var line string
-		if i == s.Cursor {
-			line = selectedStyle.Render(ansi.Strip(label))
+		if s.RenderItem != nil {
+			line = s.RenderItem(item, i, i == s.Cursor)
 		} else {
-			line = itemStyle.Render(label)
+			label := item.Label
+			if item.Description != "" {
+				desc := item.Description
+				if i == s.Cursor {
+					desc = selectedDescStyle.Render(desc)
+				} else {
+					desc = descStyle.Render(desc)
+				}
+				label = fmt.Sprintf("%s  %s", label, desc)
+			}
+
+			if i == s.Cursor {
+				line = selectedStyle.Render(ansi.Strip(label))
+			} else {
+				line = itemStyle.Render(label)
+			}
 		}
 		itemViews = append(itemViews, line)
 	}
 
 	if len(s.Filtered) == 0 {
-		itemViews = append(itemViews, noResultsStyle.Render(s.NoResults))
+		msg := s.NoResults
+		if s.EmptyMessage != "" && len(s.Items) == 0 {
+			msg = s.EmptyMessage
+		}
+		itemViews = append(itemViews, noResultsStyle.Render(msg))
 	}
 
 	separator := lipgloss.NewStyle().
@@ -359,6 +384,10 @@ func (s *ListSelectionScreen) View() string {
 	}
 	if s.FooterHint != "" {
 		footerText = s.FooterHint + " • " + footerText
+	}
+	if s.StatusMessage != "" {
+		statusStyle := lipgloss.NewStyle().Foreground(s.Thm.WarnFg)
+		footerText = statusStyle.Render(s.StatusMessage) + "  •  " + footerText
 	}
 	footer := footerStyle.Render(footerText)
 
@@ -387,6 +416,9 @@ func (s *ListSelectionScreen) applyFilter() {
 		s.Filtered = s.Items
 	} else {
 		s.Filtered = filterAndRank(s.Items, query, func(item SelectionItem) []string {
+			if s.FilterFields != nil {
+				return s.FilterFields(item)
+			}
 			return []string{item.Label, item.Description, item.ID}
 		})
 	}

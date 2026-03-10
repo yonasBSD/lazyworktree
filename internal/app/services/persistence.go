@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	defaultFilePerms = 0o600
+	defaultFilePerms = utils.DefaultFilePerms
 	// worktreeNameSentinel is a unique placeholder used when computing
 	// prefix/suffix from a path template by expanding WORKTREE_NAME.
 	worktreeNameSentinel = "\x00SENTINEL\x00"

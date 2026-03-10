@@ -668,14 +668,12 @@ func writeOutputSelection(outputSelection, outputPath string) error {
 		fmt.Fprintf(os.Stderr, "Error expanding output-selection: %v\n", err)
 		return err
 	}
-	const defaultDirPerms = 0o750
-	if err := os.MkdirAll(filepath.Dir(expanded), defaultDirPerms); err != nil {
+	if err := os.MkdirAll(filepath.Dir(expanded), utils.DefaultDirPerms); err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating output-selection dir: %v\n", err)
 		return err
 	}
-	const defaultFilePerms = 0o600
 	data := outputPath + "\n"
-	if err := os.WriteFile(expanded, []byte(data), defaultFilePerms); err != nil {
+	if err := os.WriteFile(expanded, []byte(data), utils.DefaultFilePerms); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing output-selection: %v\n", err)
 		return err
 	}

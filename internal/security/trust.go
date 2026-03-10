@@ -69,7 +69,7 @@ func (tm *TrustManager) load() {
 	}
 }
 
-const defaultFilePerms = 0o600
+const defaultFilePerms = utils.DefaultFilePerms
 
 func (tm *TrustManager) save() error {
 	tm.mu.RLock()

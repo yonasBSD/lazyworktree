@@ -49,7 +49,7 @@ const (
 	debounceDelay    = 200 * time.Millisecond
 	ciCacheTTL       = 30 * time.Second
 	defaultDirPerms  = utils.DefaultDirPerms
-	defaultFilePerms = 0o600
+	defaultFilePerms = utils.DefaultFilePerms
 
 	osDarwin  = "darwin"
 	osWindows = "windows"

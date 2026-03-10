@@ -491,7 +491,7 @@ func TestHandleOpenPRsLoadedAttachedBranchSelectsWorktree(t *testing.T) {
 		t.Fatalf("expected PR selection screen, got %T", m.state.ui.screenManager.Current())
 	}
 
-	cmd := prScr.OnSelect(prs[0])
+	cmd := prScr.OnSelectPR(prs[0])
 	if cmd != nil {
 		t.Fatal("expected no command when branch is already attached")
 	}
@@ -537,7 +537,7 @@ func TestHandleOpenPRsLoadedCreateUsesPRBranch(t *testing.T) {
 		t.Fatalf("expected PR selection screen, got %T", m.state.ui.screenManager.Current())
 	}
 
-	cmd := prScr.OnSelect(prs[0])
+	cmd := prScr.OnSelectPR(prs[0])
 	if cmd == nil {
 		t.Fatal("expected async creation command")
 	}
