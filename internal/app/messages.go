@@ -504,8 +504,30 @@ func (m *Model) handleOpenIssuesLoaded(msg openIssuesLoadedMsg) tea.Cmd {
 		return nil
 	}
 
-	issueScr := screen.NewIssueSelectionScreen(msg.issues, m.state.view.WindowWidth, m.state.view.WindowHeight, m.theme, m.config.IconsEnabled())
-	issueScr.OnSelect = func(issue *models.IssueInfo) tea.Cmd {
+	// Build issue lookup and convert to SelectionItems for the generic list screen.
+	issueMap := make(map[string]*models.IssueInfo, len(msg.issues))
+	items := make([]screen.SelectionItem, len(msg.issues))
+	for i, issue := range msg.issues {
+		id := fmt.Sprintf("%d", issue.Number)
+		issueMap[id] = issue
+		items[i] = screen.SelectionItem{
+			ID:    id,
+			Label: fmt.Sprintf("#%-5d %s", issue.Number, issue.Title),
+		}
+	}
+	issueScr := screen.NewListSelectionScreen(
+		items,
+		"Select Issue to Create Worktree",
+		"Filter issues by number or title...",
+		"No open issues found.",
+		m.state.view.WindowWidth, m.state.view.WindowHeight,
+		"", m.theme,
+	)
+	issueScr.OnSelect = func(sel screen.SelectionItem) tea.Cmd {
+		issue := issueMap[sel.ID]
+		if issue == nil {
+			return nil
+		}
 		defaultBase := m.state.services.git.GetMainBranch(m.ctx)
 		return m.showBranchSelection(
 			fmt.Sprintf("Select base branch for issue #%d", issue.Number),

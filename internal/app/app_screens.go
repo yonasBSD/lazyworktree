@@ -415,7 +415,7 @@ func (m *Model) UpdateTheme(themeName string) {
 			scr.Thm = thm
 		case *appscreen.PRSelectionScreen:
 			scr.Thm = thm
-		case *appscreen.IssueSelectionScreen:
+		case *appscreen.ListSelectionScreen:
 			scr.Thm = thm
 		case *appscreen.ChecklistScreen:
 			scr.Thm = thm

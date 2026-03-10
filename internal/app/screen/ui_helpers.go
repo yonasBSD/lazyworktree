@@ -73,10 +73,6 @@ func getIconPR() string {
 	return currentIconProvider.GetPRIcon()
 }
 
-func getIconIssue() string {
-	return currentIconProvider.GetIssueIcon()
-}
-
 func uiIcon(icon UIIcon) string {
 	return currentIconProvider.GetUIIcon(icon)
 }

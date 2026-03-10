@@ -6,8 +6,8 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/chmouel/lazyworktree/internal/app/util"
 	"github.com/chmouel/lazyworktree/internal/theme"
+	"github.com/chmouel/lazyworktree/internal/utils"
 )
 
 // NoteViewScreen displays rendered worktree notes in a pager-like modal.
@@ -141,5 +141,5 @@ func (s *NoteViewScreen) setViewportContent() {
 	if s.Viewport.Width() <= 0 {
 		return
 	}
-	s.Viewport.SetContent(util.WrapANSIContent(s.Content, s.Viewport.Width()))
+	s.Viewport.SetContent(utils.WrapANSIContent(s.Content, s.Viewport.Width()))
 }

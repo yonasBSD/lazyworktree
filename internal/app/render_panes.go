@@ -9,8 +9,8 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/chmouel/lazyworktree/internal/app/state"
-	"github.com/chmouel/lazyworktree/internal/app/util"
 	"github.com/chmouel/lazyworktree/internal/models"
+	"github.com/chmouel/lazyworktree/internal/utils"
 )
 
 type annotationKeywordSpec struct {
@@ -507,7 +507,7 @@ func (m *Model) renderNotesBox(width, height int) string {
 
 	m.state.ui.notesViewport.SetWidth(vpWidth)
 	m.state.ui.notesViewport.SetHeight(vpHeight)
-	m.state.ui.notesViewport.SetContent(util.WrapANSIContent(content, vpWidth))
+	m.state.ui.notesViewport.SetContent(utils.WrapANSIContent(content, vpWidth))
 
 	return innerBoxStyle.
 		Width(width).

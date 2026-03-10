@@ -36,7 +36,6 @@ const (
 	TypePalette
 	TypeDiff
 	TypePRSelect
-	TypeIssueSelect
 	TypeListSelect
 	TypeLoading
 	TypeCommitFiles
@@ -75,8 +74,6 @@ func (t Type) String() string {
 		return "diff"
 	case TypePRSelect:
 		return "pr-select"
-	case TypeIssueSelect:
-		return "issue-select"
 	case TypeListSelect:
 		return "list-select"
 	case TypeLoading:

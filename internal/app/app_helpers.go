@@ -13,9 +13,9 @@ import (
 	"charm.land/lipgloss/v2"
 	appscreen "github.com/chmouel/lazyworktree/internal/app/screen"
 	"github.com/chmouel/lazyworktree/internal/app/services"
-	"github.com/chmouel/lazyworktree/internal/app/util"
 	log "github.com/chmouel/lazyworktree/internal/log"
 	"github.com/chmouel/lazyworktree/internal/models"
+	"github.com/chmouel/lazyworktree/internal/utils"
 )
 
 // authorColors is a palette of visually distinct colours used to differentiate
@@ -111,11 +111,11 @@ func formatCommitMessage(message string) string {
 }
 
 func authorInitials(name string) string {
-	return util.AuthorInitials(name)
+	return utils.AuthorInitials(name)
 }
 
 func parseCommitMeta(raw string) commitMeta {
-	parsed := util.ParseCommitMeta(raw)
+	parsed := utils.ParseCommitMeta(raw)
 	return commitMeta{
 		sha:     parsed.SHA,
 		author:  parsed.Author,
@@ -127,13 +127,13 @@ func parseCommitMeta(raw string) commitMeta {
 }
 
 func sanitizePRURL(raw string) (string, error) {
-	return util.SanitizePRURL(raw)
+	return utils.SanitizePRURL(raw)
 }
 
 // gitURLToWebURL converts a git remote URL to a web URL.
 // Handles both SSH (git@github.com:user/repo.git) and HTTPS (https://github.com/user/repo.git) formats.
 func (m *Model) gitURLToWebURL(gitURL string) string {
-	return util.GitURLToWebURL(gitURL)
+	return utils.GitURLToWebURL(gitURL)
 }
 
 func filterNonEmpty(values []string) []string {
