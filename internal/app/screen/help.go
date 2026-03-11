@@ -167,7 +167,7 @@ Supported: Letters (a-z, A-Z), numbers (0-9), and hyphens (-). See help for full
 
 **{{HELP_VIEWING_TOOLS}}Viewing & Tools**
 - d: Show diff in pager (worktree or commit)
-- o: Open PR/MR in browser (or root repo in editor if main branch with merged/closed/no PR)
+- o: Open in browser — PR/MR if available, branch page otherwise, or repo for main branch
 - g: Open LazyGit (or go to top in diff pane)
 - =: Toggle zoom for focused pane
 - y: Copy to clipboard (context-aware: path in worktrees pane, file path in status pane, SHA in log pane; uses OSC52, works over SSH)

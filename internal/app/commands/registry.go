@@ -196,7 +196,7 @@ func RegisterGitOperations(r *Registry, h GitHandlers) {
 		CommandAction{ID: "sync", Label: "Synchronise with upstream", Description: "git pull, then git push (clean worktree only)", Section: sectionGitOperations, Shortcut: "S", Icon: IconGit, Handler: h.Sync},
 		CommandAction{ID: "fetch-pr-data", Label: "Fetch PR data", Description: "Fetch PR/MR status from GitHub/GitLab", Section: sectionGitOperations, Shortcut: "p", Icon: IconGit, Handler: h.FetchPRData},
 		CommandAction{ID: "ci-checks", Label: "View CI checks", Description: "View CI check logs for current worktree", Section: sectionGitOperations, Shortcut: "v", Icon: IconGit, Handler: h.ViewCIChecks, Available: h.CIChecksAvailable},
-		CommandAction{ID: "pr", Label: "Open PR", Description: "Open PR in browser", Section: sectionGitOperations, Shortcut: "o", Icon: IconGit, Handler: h.OpenPR},
+		CommandAction{ID: "pr", Label: "Open in browser", Description: "Open PR, branch, or repo in browser", Section: sectionGitOperations, Shortcut: "o", Icon: IconGit, Handler: h.OpenPR},
 		CommandAction{ID: "lazygit", Label: "Open LazyGit", Description: "Open LazyGit in selected worktree", Section: sectionGitOperations, Shortcut: "g", Icon: IconGit, Handler: h.OpenLazyGit},
 		CommandAction{ID: "run-command", Label: "Run command", Description: "Run arbitrary command in worktree", Section: sectionGitOperations, Shortcut: "!", Icon: IconGit, Handler: h.RunCommand},
 	)

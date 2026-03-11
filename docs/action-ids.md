@@ -58,7 +58,7 @@ Keys defined in `keybindings:` take priority over `custom_commands` and built-in
 | `sync` | Synchronise with upstream | `S` | git pull, then git push (clean worktree only) |
 | `fetch-pr-data` | Fetch PR data | `p` | Fetch PR/MR status from GitHub/GitLab |
 | `ci-checks` | View CI checks | `v` | View CI check logs for current worktree |
-| `pr` | Open PR | `o` | Open PR in browser |
+| `pr` | Open in browser | `o` | Open PR, branch, or repo in browser |
 | `lazygit` | Open LazyGit | `g` | Open LazyGit in selected worktree |
 | `run-command` | Run command | `!` | Run arbitrary command in worktree |
 

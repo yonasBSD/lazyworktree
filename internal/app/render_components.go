@@ -132,12 +132,15 @@ func (m *Model) renderFooter(layout layoutDims) string {
 			m.renderKeyHint("D", "Delete"),
 			m.renderKeyHint("S", "Sync"),
 		}
-		// Show "o" key hint only when current worktree has PR info
 		if m.state.data.selectedIndex >= 0 && m.state.data.selectedIndex < len(m.state.data.filteredWts) {
 			wt := m.state.data.filteredWts[m.state.data.selectedIndex]
-			if wt.PR != nil {
-				actionGroup = append(actionGroup, m.renderKeyHint("o", "Open PR"))
+			openLabel := "Open Branch"
+			if wt.IsMain && (wt.PR == nil || wt.PR.State == prStateMerged || wt.PR.State == prStateClosed) {
+				openLabel = "Open Repo"
+			} else if wt.PR != nil && wt.PR.URL != "" {
+				openLabel = "Open PR"
 			}
+			actionGroup = append(actionGroup, m.renderKeyHint("o", openLabel))
 			// Show "Ctrl+G" hint only when current worktree has local changes
 			if hasLocalChanges(wt) {
 				actionGroup = append(actionGroup, m.renderKeyHint("Ctrl+G", "Commit"))

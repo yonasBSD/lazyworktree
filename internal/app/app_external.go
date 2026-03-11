@@ -52,7 +52,7 @@ func (m *Model) openPR() tea.Cmd {
 
 	// Otherwise, open PR in browser (existing behaviour)
 	if wt.PR == nil {
-		return nil
+		return m.openBranchInBrowser(wt.Branch)
 	}
 	prURL, err := sanitizePRURL(wt.PR.URL)
 	if err != nil {
@@ -76,6 +76,32 @@ func (m *Model) openRepoInBrowser() tea.Cmd {
 		return func() tea.Msg {
 			return errMsg{err: fmt.Errorf("could not convert git URL to web URL")}
 		}
+	}
+
+	return m.openURLInBrowser(webURL)
+}
+
+func (m *Model) openBranchInBrowser(branch string) tea.Cmd {
+	remoteURL := strings.TrimSpace(m.state.services.git.RunGit(m.ctx, []string{"git", "remote", "get-url", "origin"}, "", []int{0}, true, false))
+	if remoteURL == "" {
+		return func() tea.Msg {
+			return errMsg{err: fmt.Errorf("could not determine repository remote URL")}
+		}
+	}
+
+	webURL := m.gitURLToWebURL(remoteURL)
+	if webURL == "" {
+		return func() tea.Msg {
+			return errMsg{err: fmt.Errorf("could not convert git URL to web URL")}
+		}
+	}
+
+	host := m.state.services.git.DetectHost(m.ctx)
+	switch host {
+	case "gitlab":
+		webURL += "/-/tree/" + branch
+	default:
+		webURL += "/tree/" + branch
 	}
 
 	return m.openURLInBrowser(webURL)

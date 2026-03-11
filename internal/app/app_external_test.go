@@ -1045,6 +1045,89 @@ func TestShowZellijPaneSelectorMultipleSessions(t *testing.T) {
 	}
 }
 
+func TestOpenPRFallsBackToBranchURL(t *testing.T) {
+	tests := []struct {
+		name        string
+		remoteURL   string
+		branch      string
+		expectedURL string
+	}{
+		{
+			name:        "GitHub branch URL",
+			remoteURL:   "git@github.com:user/repo.git",
+			branch:      "feature-branch",
+			expectedURL: "https://github.com/user/repo/tree/feature-branch",
+		},
+		{
+			name:        "GitLab branch URL",
+			remoteURL:   "git@gitlab.com:user/repo.git",
+			branch:      "feature-branch",
+			expectedURL: "https://gitlab.com/user/repo/-/tree/feature-branch",
+		},
+		{
+			name:        "GitHub HTTPS remote",
+			remoteURL:   "https://github.com/user/repo.git",
+			branch:      "fix/login",
+			expectedURL: "https://github.com/user/repo/tree/fix/login",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.AppConfig{
+				WorktreeDir: t.TempDir(),
+			}
+			m := NewModel(cfg, "")
+			m.state.data.filteredWts = []*models.WorktreeInfo{
+				{
+					Path:   t.TempDir(),
+					Branch: tt.branch,
+					PR:     nil,
+					IsMain: false,
+				},
+			}
+			m.state.data.selectedIndex = 0
+
+			// Mock git service command runner to return remote URL
+			m.state.services.git.SetCommandRunner(func(_ context.Context, name string, args ...string) *exec.Cmd {
+				cmd := strings.Join(append([]string{name}, args...), " ")
+				if strings.Contains(cmd, "remote get-url") {
+					if runtime.GOOS == osWindows {
+						return windowsMockOutputCmd(tt.remoteURL)
+					}
+					return exec.Command("printf", "%s", tt.remoteURL) //#nosec G204 -- test mock data
+				}
+				return exec.Command("true") //#nosec G204 -- test mock
+			})
+
+			// Capture the browser open command
+			capture := &commandCapture{}
+			m.commandRunner = capture.runner
+			m.startCommand = capture.start
+
+			cmd := m.openPR()
+			if cmd == nil {
+				t.Fatal("expected command to be returned")
+			}
+			_ = cmd()
+
+			var openedURL string
+			if runtime.GOOS == osWindows {
+				if len(capture.args) >= 2 {
+					openedURL = capture.args[1]
+				}
+			} else {
+				if len(capture.args) >= 1 {
+					openedURL = capture.args[0]
+				}
+			}
+			if openedURL != tt.expectedURL {
+				t.Fatalf("expected URL %q, got %q", tt.expectedURL, openedURL)
+			}
+		})
+	}
+}
+
 func TestZellijNewPaneCmdSuccess(t *testing.T) {
 	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
 	m := NewModel(cfg, "")
