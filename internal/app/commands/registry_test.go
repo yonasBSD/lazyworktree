@@ -12,19 +12,19 @@ func TestUpdateShortcutsClearsStaleOwner(t *testing.T) {
 
 	r := NewRegistry()
 	r.Register(
-		CommandAction{ID: "lazygit", Label: "LazyGit", Shortcut: "g", Handler: func() tea.Cmd { return nil }},
-		CommandAction{ID: "fetch", Label: "Fetch", Shortcut: "R", Handler: func() tea.Cmd { return nil }},
+		CommandAction{ID: "git-lazygit", Label: "LazyGit", Shortcut: "g", Handler: func() tea.Cmd { return nil }},
+		CommandAction{ID: "git-fetch", Label: "Fetch", Shortcut: "R", Handler: func() tea.Cmd { return nil }},
 	)
 
-	// Rebind "g" to "fetch" — "lazygit" should lose its shortcut.
-	r.UpdateShortcuts(map[string]string{"g": "fetch"})
+	// Rebind "g" to "git-fetch" — "git-lazygit" should lose its shortcut.
+	r.UpdateShortcuts(map[string]string{"g": "git-fetch"})
 
 	for _, a := range r.Actions() {
 		switch a.ID {
-		case "lazygit":
-			assert.Empty(t, a.Shortcut, "lazygit should have its shortcut cleared")
-		case "fetch":
-			assert.Equal(t, "g", a.Shortcut, "fetch should now have shortcut g")
+		case "git-lazygit":
+			assert.Empty(t, a.Shortcut, "git-lazygit should have its shortcut cleared")
+		case "git-fetch":
+			assert.Equal(t, "g", a.Shortcut, "git-fetch should now have shortcut g")
 		}
 	}
 }
@@ -40,7 +40,7 @@ func TestRegisterWorktreeActionsUsesMetadataMenuShortcut(t *testing.T) {
 		shortcuts[action.ID] = action.Shortcut
 	}
 
-	assert.Equal(t, "e", shortcuts["edit-metadata"])
-	assert.Empty(t, shortcuts["annotate"])
-	assert.Empty(t, shortcuts["set-icon"])
+	assert.Equal(t, "e", shortcuts["worktree-edit-metadata"])
+	assert.Empty(t, shortcuts["worktree-annotate"])
+	assert.Empty(t, shortcuts["worktree-set-icon"])
 }

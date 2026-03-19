@@ -54,11 +54,15 @@ func (r *Registry) Actions() []CommandAction {
 // It first clears any existing action that held the same shortcut key to
 // prevent duplicate display in the palette.
 func (r *Registry) UpdateShortcuts(keybindings map[string]string) {
-	// Build reverse map: shortcut → action index for clearing stale owners.
+	// Build reverse maps: shortcut → index and id → index for O(1) updates.
 	shortcutOwner := make(map[string]int) // key → index in r.actions
+	idIndex := make(map[string]int)       // action ID → index in r.actions
 	for i, a := range r.actions {
 		if a.Shortcut != "" {
 			shortcutOwner[a.Shortcut] = i
+		}
+		if a.ID != "" {
+			idIndex[a.ID] = i
 		}
 	}
 
@@ -76,12 +80,9 @@ func (r *Registry) UpdateShortcuts(keybindings map[string]string) {
 
 		action.Shortcut = key
 		r.byID[actionID] = action
-		for i := range r.actions {
-			if r.actions[i].ID == actionID {
-				r.actions[i].Shortcut = key
-				shortcutOwner[key] = i
-				break
-			}
+		if idx, ok := idIndex[actionID]; ok {
+			r.actions[idx].Shortcut = key
+			shortcutOwner[key] = idx
 		}
 	}
 }
@@ -172,27 +173,27 @@ func createAction(id, label, desc string, handler func() tea.Cmd) CommandAction 
 // RegisterWorktreeActions registers worktree-related actions.
 func RegisterWorktreeActions(r *Registry, h WorktreeHandlers) {
 	r.Register(
-		wtAction("create", "Create worktree", "Add a new worktree from base branch or PR/MR", "c", h.Create),
-		wtAction("delete", "Delete worktree", "Remove worktree and branch", "D", h.Delete),
-		wtAction("rename", "Rename worktree", "Rename worktree (and branch when names match)", "m", h.Rename),
-		wtAction("edit-metadata", "Edit worktree metadata", "Choose description, colour, notes, icon, or tags for the selected worktree", "e", h.EditMetadata),
-		wtAction("annotate", "Worktree notes", "View or edit notes for the selected worktree", "", h.Annotate),
-		wtAction("set-icon", "Set worktree icon", "Choose a custom icon for the selected worktree", "", h.SetIcon),
-		wtAction("set-color", "Set worktree colour", "Choose a colour for the selected worktree name", "", h.SetColor),
-		wtAction("set-description", "Set worktree description", "Set a short label replacing the directory name in the list", "", h.SetDescription),
-		wtAction("set-tags", "Set worktree tags", "Type tags or toggle existing labels in one editor", "", h.SetTags),
-		wtAction("browse-tags", "Browse by worktree tags", "Browse worktrees by existing tags and apply an exact tag filter", "", h.BrowseTags),
-		wtAction("absorb", "Absorb worktree", "Merge branch into main and remove worktree", "A", h.Absorb),
-		wtAction("prune", "Prune merged", "Remove merged PR worktrees", "X", h.Prune),
+		wtAction("worktree-create", "Create worktree", "Add a new worktree from base branch or PR/MR", "c", h.Create),
+		wtAction("worktree-delete", "Delete worktree", "Remove worktree and branch", "D", h.Delete),
+		wtAction("worktree-rename", "Rename worktree", "Rename worktree (and branch when names match)", "m", h.Rename),
+		wtAction("worktree-edit-metadata", "Edit worktree metadata", "Choose description, colour, notes, icon, or tags for the selected worktree", "e", h.EditMetadata),
+		wtAction("worktree-annotate", "Worktree notes", "View or edit notes for the selected worktree", "", h.Annotate),
+		wtAction("worktree-set-icon", "Set worktree icon", "Choose a custom icon for the selected worktree", "", h.SetIcon),
+		wtAction("worktree-set-color", "Set worktree colour", "Choose a colour for the selected worktree name", "", h.SetColor),
+		wtAction("worktree-set-description", "Set worktree description", "Set a short label replacing the directory name in the list", "", h.SetDescription),
+		wtAction("worktree-set-tags", "Set worktree tags", "Type tags or toggle existing labels in one editor", "", h.SetTags),
+		wtAction("worktree-browse-tags", "Browse by worktree tags", "Browse worktrees by existing tags and apply an exact tag filter", "", h.BrowseTags),
+		wtAction("worktree-absorb", "Absorb worktree", "Merge branch into main and remove worktree", "A", h.Absorb),
+		wtAction("worktree-prune", "Prune merged", "Remove merged PR worktrees", "X", h.Prune),
 	)
 
 	r.Register(
-		createAction("create-from-current", "Create from current branch", "Create from current branch with or without changes", h.CreateFromCurrent),
-		createAction("create-from-branch", "Create from branch/tag", "Select a branch, tag, or remote as base", h.CreateFromBranch),
-		createAction("create-from-commit", "Create from commit", "Choose a branch, then select a specific commit", h.CreateFromCommit),
-		createAction("create-from-pr", "Create from PR/MR", "Create from a pull/merge request", h.CreateFromPR),
-		createAction("create-from-issue", "Create from issue", "Create from a GitHub/GitLab issue", h.CreateFromIssue),
-		createAction("create-freeform", "Create from ref", "Enter a branch, tag, or commit manually", h.CreateFreeform),
+		createAction("worktree-create-from-current", "Create from current branch", "Create from current branch with or without changes", h.CreateFromCurrent),
+		createAction("worktree-create-from-branch", "Create from branch/tag", "Select a branch, tag, or remote as base", h.CreateFromBranch),
+		createAction("worktree-create-from-commit", "Create from commit", "Choose a branch, then select a specific commit", h.CreateFromCommit),
+		createAction("worktree-create-from-pr", "Create from PR/MR", "Create from a pull/merge request", h.CreateFromPR),
+		createAction("worktree-create-from-issue", "Create from issue", "Create from a GitHub/GitLab issue", h.CreateFromIssue),
+		createAction("worktree-create-freeform", "Create from ref", "Enter a branch, tag, or commit manually", h.CreateFreeform),
 	)
 }
 
@@ -214,16 +215,16 @@ type GitHandlers struct {
 // RegisterGitOperations registers git operations.
 func RegisterGitOperations(r *Registry, h GitHandlers) {
 	r.Register(
-		CommandAction{ID: "diff", Label: "Show diff", Description: "Show diff for current worktree or commit", Section: sectionGitOperations, Shortcut: "d", Icon: IconGit, Handler: h.ShowDiff},
-		CommandAction{ID: "refresh", Label: "Refresh", Description: "Reload worktrees", Section: sectionGitOperations, Shortcut: "r", Icon: IconGit, Handler: h.Refresh},
-		CommandAction{ID: "fetch", Label: "Fetch remotes", Description: "git fetch --all", Section: sectionGitOperations, Shortcut: "R", Icon: IconGit, Handler: h.Fetch},
-		CommandAction{ID: "push", Label: "Push to upstream", Description: "git push (clean worktree only)", Section: sectionGitOperations, Shortcut: "P", Icon: IconGit, Handler: h.Push},
-		CommandAction{ID: "sync", Label: "Synchronise with upstream", Description: "git pull, then git push (clean worktree only)", Section: sectionGitOperations, Shortcut: "S", Icon: IconGit, Handler: h.Sync},
-		CommandAction{ID: "fetch-pr-data", Label: "Fetch PR data", Description: "Fetch PR/MR status from GitHub/GitLab", Section: sectionGitOperations, Shortcut: "p", Icon: IconGit, Handler: h.FetchPRData},
-		CommandAction{ID: "ci-checks", Label: "View CI checks", Description: "View CI check logs for current worktree", Section: sectionGitOperations, Shortcut: "v", Icon: IconGit, Handler: h.ViewCIChecks, Available: h.CIChecksAvailable},
-		CommandAction{ID: "pr", Label: "Open in browser", Description: "Open PR, branch, or repo in browser", Section: sectionGitOperations, Shortcut: "o", Icon: IconGit, Handler: h.OpenPR},
-		CommandAction{ID: "lazygit", Label: "Open LazyGit", Description: "Open LazyGit in selected worktree", Section: sectionGitOperations, Shortcut: "g", Icon: IconGit, Handler: h.OpenLazyGit},
-		CommandAction{ID: "run-command", Label: "Run command", Description: "Run arbitrary command in worktree", Section: sectionGitOperations, Shortcut: "!", Icon: IconGit, Handler: h.RunCommand},
+		CommandAction{ID: "git-diff", Label: "Show diff", Description: "Show diff for current worktree or commit", Section: sectionGitOperations, Shortcut: "d", Icon: IconGit, Handler: h.ShowDiff},
+		CommandAction{ID: "git-refresh", Label: "Refresh", Description: "Reload worktrees", Section: sectionGitOperations, Shortcut: "r", Icon: IconGit, Handler: h.Refresh},
+		CommandAction{ID: "git-fetch", Label: "Fetch remotes", Description: "git fetch --all", Section: sectionGitOperations, Shortcut: "R", Icon: IconGit, Handler: h.Fetch},
+		CommandAction{ID: "git-push", Label: "Push to upstream", Description: "git push (clean worktree only)", Section: sectionGitOperations, Shortcut: "P", Icon: IconGit, Handler: h.Push},
+		CommandAction{ID: "git-sync", Label: "Synchronise with upstream", Description: "git pull, then git push (clean worktree only)", Section: sectionGitOperations, Shortcut: "S", Icon: IconGit, Handler: h.Sync},
+		CommandAction{ID: "git-fetch-pr-data", Label: "Fetch PR data", Description: "Fetch PR/MR status from GitHub/GitLab", Section: sectionGitOperations, Shortcut: "p", Icon: IconGit, Handler: h.FetchPRData},
+		CommandAction{ID: "git-ci-checks", Label: "View CI checks", Description: "View CI check logs for current worktree", Section: sectionGitOperations, Shortcut: "v", Icon: IconGit, Handler: h.ViewCIChecks, Available: h.CIChecksAvailable},
+		CommandAction{ID: "git-pr", Label: "Open in browser", Description: "Open PR, branch, or repo in browser", Section: sectionGitOperations, Shortcut: "o", Icon: IconGit, Handler: h.OpenPR},
+		CommandAction{ID: "git-lazygit", Label: "Open LazyGit", Description: "Open LazyGit in selected worktree", Section: sectionGitOperations, Shortcut: "g", Icon: IconGit, Handler: h.OpenLazyGit},
+		CommandAction{ID: "git-run-command", Label: "Run command", Description: "Run arbitrary command in worktree", Section: sectionGitOperations, Shortcut: "!", Icon: IconGit, Handler: h.RunCommand},
 	)
 }
 
@@ -239,11 +240,11 @@ type StatusHandlers struct {
 // RegisterStatusPaneActions registers status pane actions.
 func RegisterStatusPaneActions(r *Registry, h StatusHandlers) {
 	r.Register(
-		CommandAction{ID: "stage-file", Label: "Stage/unstage file", Description: "Stage or unstage selected file", Section: sectionStatusPane, Shortcut: "s", Icon: IconStatus, Handler: h.StageFile},
-		CommandAction{ID: "commit-staged", Label: "Open commit screen", Description: "Open the commit screen for staged changes (or prompt to stage all)", Section: sectionStatusPane, Shortcut: "c", Icon: IconStatus, Handler: h.CommitStaged},
-		CommandAction{ID: "commit-all", Label: "Commit changes using git editor", Description: "Commit using git editor", Section: sectionStatusPane, Shortcut: "C", Icon: IconStatus, Handler: h.CommitAll},
-		CommandAction{ID: "edit-file", Label: "Edit file", Description: "Open selected file in editor", Section: sectionStatusPane, Shortcut: "e", Icon: IconStatus, Handler: h.EditFile},
-		CommandAction{ID: "delete-file", Label: "Delete selected file or directory", Section: sectionStatusPane, Icon: IconStatus, Handler: h.DeleteFile},
+		CommandAction{ID: "status-stage-file", Label: "Stage/unstage file", Description: "Stage or unstage selected file", Section: sectionStatusPane, Shortcut: "s", Icon: IconStatus, Handler: h.StageFile},
+		CommandAction{ID: "status-commit-staged", Label: "Open commit screen", Description: "Open the commit screen for staged changes (or prompt to stage all)", Section: sectionStatusPane, Shortcut: "c", Icon: IconStatus, Handler: h.CommitStaged},
+		CommandAction{ID: "status-commit-all", Label: "Commit changes using git editor", Description: "Commit using git editor", Section: sectionStatusPane, Shortcut: "C", Icon: IconStatus, Handler: h.CommitAll},
+		CommandAction{ID: "status-edit-file", Label: "Edit file", Description: "Open selected file in editor", Section: sectionStatusPane, Shortcut: "e", Icon: IconStatus, Handler: h.EditFile},
+		CommandAction{ID: "status-delete-file", Label: "Delete selected file or directory", Section: sectionStatusPane, Icon: IconStatus, Handler: h.DeleteFile},
 	)
 }
 
@@ -256,8 +257,8 @@ type LogHandlers struct {
 // RegisterLogPaneActions registers log pane actions.
 func RegisterLogPaneActions(r *Registry, h LogHandlers) {
 	r.Register(
-		CommandAction{ID: "cherry-pick", Label: "Cherry-pick commit", Description: "Cherry-pick commit to another worktree", Section: sectionLogPane, Shortcut: "C", Icon: IconLog, Handler: h.CherryPick},
-		CommandAction{ID: "commit-view", Label: "Browse commit files", Description: "Browse files changed in selected commit", Section: sectionLogPane, Icon: IconLog, Handler: h.CommitView},
+		CommandAction{ID: "log-cherry-pick", Label: "Cherry-pick commit", Description: "Cherry-pick commit to another worktree", Section: sectionLogPane, Shortcut: "C", Icon: IconLog, Handler: h.CherryPick},
+		CommandAction{ID: "log-commit-view", Label: "Browse commit files", Description: "Browse files changed in selected commit", Section: sectionLogPane, Icon: IconLog, Handler: h.CommitView},
 	)
 }
 
@@ -276,14 +277,14 @@ type NavigationHandlers struct {
 // RegisterNavigationActions registers navigation actions.
 func RegisterNavigationActions(r *Registry, h NavigationHandlers) {
 	r.Register(
-		CommandAction{ID: "zoom-toggle", Label: "Toggle zoom", Description: "Toggle zoom on focused pane", Section: sectionNavigation, Shortcut: "=", Icon: IconNavigation, Handler: h.ToggleZoom},
-		CommandAction{ID: "toggle-layout", Label: "Toggle layout", Description: "Switch between default and top layout", Section: sectionNavigation, Shortcut: "L", Icon: IconNavigation, Handler: h.ToggleLayout},
-		CommandAction{ID: "filter", Label: "Filter", Description: "Filter items in focused pane", Section: sectionNavigation, Shortcut: "f", Icon: IconNavigation, Handler: h.Filter},
-		CommandAction{ID: "search", Label: "Search", Description: "Search items in focused pane", Section: sectionNavigation, Shortcut: "/", Icon: IconNavigation, Handler: h.Search},
-		CommandAction{ID: "focus-worktrees", Label: "Focus worktrees", Description: "Focus worktree pane", Section: sectionNavigation, Shortcut: "1", Icon: IconNavigation, Handler: h.FocusWorktree},
-		CommandAction{ID: "focus-status", Label: "Focus status", Description: "Focus status pane", Section: sectionNavigation, Shortcut: "2", Icon: IconNavigation, Handler: h.FocusStatus},
-		CommandAction{ID: "focus-log", Label: "Focus log", Description: "Focus log pane", Section: sectionNavigation, Shortcut: "3", Icon: IconNavigation, Handler: h.FocusLog},
-		CommandAction{ID: "sort-cycle", Label: "Cycle sort", Description: "Cycle sort mode (path/active/switched)", Section: sectionNavigation, Shortcut: "s", Icon: IconNavigation, Handler: h.SortCycle},
+		CommandAction{ID: "nav-zoom-toggle", Label: "Toggle zoom", Description: "Toggle zoom on focused pane", Section: sectionNavigation, Shortcut: "=", Icon: IconNavigation, Handler: h.ToggleZoom},
+		CommandAction{ID: "nav-toggle-layout", Label: "Toggle layout", Description: "Switch between default and top layout", Section: sectionNavigation, Shortcut: "L", Icon: IconNavigation, Handler: h.ToggleLayout},
+		CommandAction{ID: "nav-filter", Label: "Filter", Description: "Filter items in focused pane", Section: sectionNavigation, Shortcut: "f", Icon: IconNavigation, Handler: h.Filter},
+		CommandAction{ID: "nav-search", Label: "Search", Description: "Search items in focused pane", Section: sectionNavigation, Shortcut: "/", Icon: IconNavigation, Handler: h.Search},
+		CommandAction{ID: "nav-focus-worktrees", Label: "Focus worktrees", Description: "Focus worktree pane", Section: sectionNavigation, Shortcut: "1", Icon: IconNavigation, Handler: h.FocusWorktree},
+		CommandAction{ID: "nav-focus-status", Label: "Focus status", Description: "Focus status pane", Section: sectionNavigation, Shortcut: "2", Icon: IconNavigation, Handler: h.FocusStatus},
+		CommandAction{ID: "nav-focus-log", Label: "Focus log", Description: "Focus log pane", Section: sectionNavigation, Shortcut: "3", Icon: IconNavigation, Handler: h.FocusLog},
+		CommandAction{ID: "nav-sort-cycle", Label: "Cycle sort", Description: "Cycle sort mode (path/active/switched)", Section: sectionNavigation, Shortcut: "s", Icon: IconNavigation, Handler: h.SortCycle},
 	)
 }
 
@@ -297,9 +298,9 @@ type ClipboardHandlers struct {
 // RegisterClipboardActions registers clipboard actions.
 func RegisterClipboardActions(r *Registry, h ClipboardHandlers) {
 	r.Register(
-		CommandAction{ID: "copy-path", Label: "Copy path / file / SHA", Description: "Copy context-aware content (path, file, or commit SHA)", Section: sectionNavigation, Shortcut: "y", Icon: IconNavigation, Handler: h.CopyPath},
-		CommandAction{ID: "copy-branch", Label: "Copy branch name", Description: "Copy selected worktree branch name", Section: sectionNavigation, Shortcut: "Y", Icon: IconNavigation, Handler: h.CopyBranch},
-		CommandAction{ID: "copy-pr-url", Label: "Copy PR/MR URL", Description: "Copy selected worktree PR/MR URL", Section: sectionNavigation, Icon: IconNavigation, Handler: h.CopyPRURL},
+		CommandAction{ID: "nav-copy-path", Label: "Copy path / file / SHA", Description: "Copy context-aware content (path, file, or commit SHA)", Section: sectionNavigation, Shortcut: "y", Icon: IconNavigation, Handler: h.CopyPath},
+		CommandAction{ID: "nav-copy-branch", Label: "Copy branch name", Description: "Copy selected worktree branch name", Section: sectionNavigation, Shortcut: "Y", Icon: IconNavigation, Handler: h.CopyBranch},
+		CommandAction{ID: "nav-copy-pr-url", Label: "Copy PR/MR URL", Description: "Copy selected worktree PR/MR URL", Section: sectionNavigation, Icon: IconNavigation, Handler: h.CopyPRURL},
 	)
 }
 
@@ -313,8 +314,8 @@ type SettingsHandlers struct {
 // RegisterSettingsActions registers settings actions.
 func RegisterSettingsActions(r *Registry, h SettingsHandlers) {
 	r.Register(
-		CommandAction{ID: "theme", Label: "Select theme", Description: "Change the application theme with live preview", Section: sectionSettings, Icon: IconSettings, Handler: h.Theme},
-		CommandAction{ID: "taskboard", Label: "Taskboard", Description: "Browse and toggle worktree tasks", Section: sectionSettings, Shortcut: "T", Icon: IconSettings, Handler: h.Taskboard},
-		CommandAction{ID: "help", Label: "Help", Description: "Show help", Section: sectionSettings, Shortcut: "?", Icon: IconSettings, Handler: h.Help},
+		CommandAction{ID: "settings-theme", Label: "Select theme", Description: "Change the application theme with live preview", Section: sectionSettings, Icon: IconSettings, Handler: h.Theme},
+		CommandAction{ID: "settings-taskboard", Label: "Taskboard", Description: "Browse and toggle worktree tasks", Section: sectionSettings, Shortcut: "T", Icon: IconSettings, Handler: h.Taskboard},
+		CommandAction{ID: "settings-help", Label: "Help", Description: "Show help", Section: sectionSettings, Shortcut: "?", Icon: IconSettings, Handler: h.Help},
 	)
 }

@@ -450,18 +450,18 @@ custom_commands:
 #
 # Pane names: universal, worktrees, info, status, log, notes, agent_sessions
 #
-# Use any action ID listed in docs/action-ids.md (e.g. lazygit, delete, diff).
+# Use any action ID listed in docs/action-ids.md (e.g. git-lazygit, worktree-delete, git-diff).
 # Supported key formats: same as custom_commands (e.g. "G", "ctrl+d", "alt+l")
 #
 # Examples:
 # keybindings:
 #   universal:
-#     G: lazygit
-#     F: fetch
+#     G: git-lazygit
+#     F: git-fetch
 #   worktrees:
-#     x: delete
+#     x: worktree-delete
 #   log:
-#     d: diff
+#     d: git-diff
 
 # ============================================================================
 # CUSTOM MENUS

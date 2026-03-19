@@ -17,8 +17,8 @@ const (
 	testDiff           = "diff"
 	testFallback       = "fallback"
 	mruSectionLabel    = "Recently Used"
-	testCommandCreate  = "create"
-	testCommandRefresh = "refresh"
+	testCommandCreate  = "worktree-create"
+	testCommandRefresh = "git-refresh"
 	testPRURL          = "https://example.com/pr/1"
 	featureBranch      = "feature"
 )
@@ -105,10 +105,7 @@ func TestClosePersistsCurrentSelection(t *testing.T) {
 }
 
 func TestFocusBlurUpdatesState(t *testing.T) {
-	cfg := &config.AppConfig{
-		WorktreeDir: t.TempDir(),
-	}
-	m := NewModel(cfg, "")
+	m := newTestModel(t)
 	if !m.state.view.TerminalFocused {
 		t.Fatal("expected TerminalFocused to be true by default")
 	}
@@ -129,10 +126,7 @@ func TestFocusBlurUpdatesState(t *testing.T) {
 }
 
 func TestGetSelectedPath(t *testing.T) {
-	cfg := &config.AppConfig{
-		WorktreeDir: t.TempDir(),
-	}
-	m := NewModel(cfg, "")
+	m := newTestModel(t)
 	m.selectedPath = "/tmp/selected"
 
 	if got := m.GetSelectedPath(); got != "/tmp/selected" {

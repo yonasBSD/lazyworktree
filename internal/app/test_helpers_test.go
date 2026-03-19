@@ -6,7 +6,14 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+
+	"github.com/chmouel/lazyworktree/internal/config"
 )
+
+func newTestModel(t *testing.T) *Model {
+	t.Helper()
+	return NewModel(&config.AppConfig{WorktreeDir: t.TempDir()}, "")
+}
 
 func mockGitWorktreeList(t *testing.T, m *Model, paths ...string) {
 	t.Helper()

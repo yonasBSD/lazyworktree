@@ -517,32 +517,28 @@ func collectStringConsts(file *ast.File) map[string]string {
 }
 
 func parseActionLiteral(lit *ast.CompositeLit, consts map[string]string) actionSpec {
-	var spec actionSpec
+	spec := actionSpec{
+		ID:          extractStringField(lit.Elts, "ID"),
+		Label:       extractStringField(lit.Elts, "Label"),
+		Description: extractStringField(lit.Elts, "Description"),
+		Shortcut:    extractStringField(lit.Elts, "Shortcut"),
+	}
+	// Section may be a const identifier rather than a string literal.
 	for _, elt := range lit.Elts {
 		kv, ok := elt.(*ast.KeyValueExpr)
 		if !ok {
 			continue
 		}
 		keyIdent, ok := kv.Key.(*ast.Ident)
-		if !ok {
+		if !ok || keyIdent.Name != "Section" {
 			continue
 		}
-		switch keyIdent.Name {
-		case "ID":
-			spec.ID, _ = stringLiteral(kv.Value)
-		case "Label":
-			spec.Label, _ = stringLiteral(kv.Value)
-		case "Description":
-			spec.Description, _ = stringLiteral(kv.Value)
-		case "Section":
-			if ident, ok := kv.Value.(*ast.Ident); ok {
-				spec.Section = consts[ident.Name]
-			} else {
-				spec.Section, _ = stringLiteral(kv.Value)
-			}
-		case "Shortcut":
-			spec.Shortcut, _ = stringLiteral(kv.Value)
+		if ident, ok := kv.Value.(*ast.Ident); ok {
+			spec.Section = consts[ident.Name]
+		} else {
+			spec.Section, _ = stringLiteral(kv.Value)
 		}
+		break
 	}
 	return spec
 }
@@ -637,29 +633,23 @@ func extractReturnedCompositeLit(fn *ast.FuncDecl) *ast.CompositeLit {
 }
 
 func parseCommandLiteral(lit *ast.CompositeLit) commandSpec {
-	cmd := commandSpec{}
+	cmd := commandSpec{
+		Name:      extractStringField(lit.Elts, "Name"),
+		Usage:     extractStringField(lit.Elts, "Usage"),
+		ArgsUsage: extractStringField(lit.Elts, "ArgsUsage"),
+		Aliases:   extractStringSliceField(lit.Elts, "Aliases"),
+	}
 	for _, elt := range lit.Elts {
 		kv, ok := elt.(*ast.KeyValueExpr)
 		if !ok {
 			continue
 		}
 		keyIdent, ok := kv.Key.(*ast.Ident)
-		if !ok {
+		if !ok || keyIdent.Name != "Flags" {
 			continue
 		}
-
-		switch keyIdent.Name {
-		case "Name":
-			cmd.Name, _ = stringLiteral(kv.Value)
-		case "Usage":
-			cmd.Usage, _ = stringLiteral(kv.Value)
-		case "ArgsUsage":
-			cmd.ArgsUsage, _ = stringLiteral(kv.Value)
-		case "Aliases":
-			cmd.Aliases = stringSliceLiteral(kv.Value)
-		case "Flags":
-			cmd.Flags = parseFlagsComposite(kv.Value)
-		}
+		cmd.Flags = parseFlagsComposite(kv.Value)
+		break
 	}
 	return cmd
 }
@@ -696,32 +686,49 @@ func parseFlagLiteralExpr(expr ast.Expr) (flagSpec, bool) {
 }
 
 func parseFlagCompositeLiteral(lit *ast.CompositeLit) (flagSpec, bool) {
-	spec := flagSpec{}
-	if sel, ok := lit.Type.(*ast.SelectorExpr); ok {
-		spec.Kind = strings.TrimSuffix(sel.Sel.Name, "Flag")
-		spec.Kind = strings.ToLower(spec.Kind)
+	spec := flagSpec{
+		Name:    extractStringField(lit.Elts, "Name"),
+		Aliases: extractStringSliceField(lit.Elts, "Aliases"),
+		Usage:   extractStringField(lit.Elts, "Usage"),
 	}
+	if sel, ok := lit.Type.(*ast.SelectorExpr); ok {
+		spec.Kind = strings.ToLower(strings.TrimSuffix(sel.Sel.Name, "Flag"))
+	}
+	return spec, spec.Name != ""
+}
 
-	for _, elt := range lit.Elts {
+// extractStringField returns the string literal value for a named key in a
+// composite literal field list, or "" if the key is absent or not a string.
+func extractStringField(fields []ast.Expr, key string) string {
+	for _, elt := range fields {
 		kv, ok := elt.(*ast.KeyValueExpr)
 		if !ok {
 			continue
 		}
 		keyIdent, ok := kv.Key.(*ast.Ident)
+		if !ok || keyIdent.Name != key {
+			continue
+		}
+		val, _ := stringLiteral(kv.Value)
+		return val
+	}
+	return ""
+}
+
+// extractStringSliceField returns the []string literal for a named key, or nil.
+func extractStringSliceField(fields []ast.Expr, key string) []string {
+	for _, elt := range fields {
+		kv, ok := elt.(*ast.KeyValueExpr)
 		if !ok {
 			continue
 		}
-		switch keyIdent.Name {
-		case "Name":
-			spec.Name, _ = stringLiteral(kv.Value)
-		case "Aliases":
-			spec.Aliases = stringSliceLiteral(kv.Value)
-		case "Usage":
-			spec.Usage, _ = stringLiteral(kv.Value)
+		keyIdent, ok := kv.Key.(*ast.Ident)
+		if !ok || keyIdent.Name != key {
+			continue
 		}
+		return stringSliceLiteral(kv.Value)
 	}
-
-	return spec, spec.Name != ""
+	return nil
 }
 
 func stringLiteral(expr ast.Expr) (string, bool) {
@@ -942,7 +949,7 @@ func renderActionIDsPage(actions []actionSpec) string {
 	b.WriteString("# Action IDs Reference\n\n")
 	b.WriteString("Use these IDs in the `keybindings:` section of your configuration file to bind any key to a built-in palette action. Keybindings use a pane-scoped structure where `universal` bindings apply everywhere and pane-specific sections override them when that pane is focused.\n\n")
 	b.WriteString("**Valid pane scope names:** `universal`, `worktrees`, `info`, `status`, `log`, `notes`, `agent_sessions`\n\n")
-	b.WriteString("```yaml\nkeybindings:\n  universal:\n    G: lazygit\n    ctrl+d: delete\n    F: fetch\n  worktrees:\n    x: delete\n  log:\n    d: diff\n```\n\n")
+	b.WriteString("```yaml\nkeybindings:\n  universal:\n    G: git-lazygit\n    ctrl+d: worktree-delete\n    F: git-fetch\n  worktrees:\n    x: worktree-delete\n  log:\n    d: git-diff\n```\n\n")
 	b.WriteString("Keys defined in `keybindings:` take priority over `custom_commands` and built-in keys. The bound key is also displayed as the shortcut in the command palette. Pane-specific bindings override universal ones for the same key.\n\n")
 	b.WriteString("---\n")
 

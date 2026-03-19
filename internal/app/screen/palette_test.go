@@ -12,13 +12,17 @@ import (
 	"github.com/chmouel/lazyworktree/internal/theme"
 )
 
+func makeTestPalette(items []PaletteItem, width int) *CommandPaletteScreen {
+	return NewCommandPaletteScreen(items, width, 24, theme.Dracula())
+}
+
 func TestCommandPaletteFilterToggle(t *testing.T) {
 	items := []PaletteItem{
 		{ID: "alpha", Label: "Alpha"},
 		{ID: "beta", Label: "Beta"},
 	}
 
-	scr := NewCommandPaletteScreen(items, 80, 24, theme.Dracula())
+	scr := makeTestPalette(items, 80)
 	if !scr.FilterActive {
 		t.Fatal("expected filter to be active by default")
 	}
@@ -56,7 +60,7 @@ func TestCommandPaletteViewWithIcons(t *testing.T) {
 		{ID: "delete", Label: "Delete worktree", Description: "Remove worktree", Shortcut: "D", Icon: ""},
 	}
 
-	scr := NewCommandPaletteScreen(items, 100, 24, theme.Dracula())
+	scr := makeTestPalette(items, 100)
 	view := scr.View()
 
 	// Verify the view contains expected elements
@@ -73,7 +77,7 @@ func TestCommandPaletteViewWithMRU(t *testing.T) {
 		{ID: "refresh", Label: "Refresh", Description: "Reload worktrees", Shortcut: "r", Icon: ""},
 	}
 
-	scr := NewCommandPaletteScreen(items, 100, 24, theme.Dracula())
+	scr := makeTestPalette(items, 100)
 	view := scr.View()
 
 	assert.Contains(t, view, "Recently Used", "should contain MRU section")
@@ -83,22 +87,22 @@ func TestCommandPaletteViewWithMRU(t *testing.T) {
 func TestCommandPaletteFilterHidesEmptySections(t *testing.T) {
 	items := []PaletteItem{
 		{Label: "Worktree Actions", IsSection: true},
-		{ID: "create", Label: "Create worktree", Description: "Add a new worktree"},
+		{ID: "worktree-create", Label: "Create worktree", Description: "Add a new worktree"},
 		{Label: "Status Pane", IsSection: true},
 		{ID: "refresh-status", Label: "Refresh status", Description: "Reload status pane"},
 		{Label: "Navigation", IsSection: true},
-		{ID: "focus-worktrees", Label: "Focus worktrees", Description: "Focus worktree pane"},
+		{ID: "nav-focus-worktrees", Label: "Focus worktrees", Description: "Focus worktree pane"},
 	}
 
-	scr := NewCommandPaletteScreen(items, 100, 24, theme.Dracula())
+	scr := makeTestPalette(items, 100)
 	scr.FilterInput.SetValue("worktree")
 	scr.applyFilter()
 
 	require.Len(t, scr.Filtered, 4)
 	assert.Equal(t, "Worktree Actions", scr.Filtered[0].Label)
-	assert.Equal(t, "create", scr.Filtered[1].ID)
+	assert.Equal(t, "worktree-create", scr.Filtered[1].ID)
 	assert.Equal(t, "Navigation", scr.Filtered[2].Label)
-	assert.Equal(t, "focus-worktrees", scr.Filtered[3].ID)
+	assert.Equal(t, "nav-focus-worktrees", scr.Filtered[3].ID)
 }
 
 func TestCommandPaletteHighlightMatches(t *testing.T) {
@@ -106,7 +110,7 @@ func TestCommandPaletteHighlightMatches(t *testing.T) {
 		{ID: "create", Label: "Create worktree", Description: "Add a new worktree", Icon: ""},
 	}
 
-	scr := NewCommandPaletteScreen(items, 100, 24, theme.Dracula())
+	scr := makeTestPalette(items, 100)
 
 	// Test highlight function directly
 	result := scr.highlightContiguousMatch("Create worktree", 0, len("cre"), lipgloss.NewStyle())
@@ -122,16 +126,16 @@ func TestCommandPaletteRanksLabelWordMatchBeforeDescriptionPrefix(t *testing.T) 
 		{Label: "Git Operations", IsSection: true},
 		{ID: "pr", Label: "Open PR", Description: "Open PR in browser"},
 		{Label: "Log Pane", IsSection: true},
-		{ID: "commit-view", Label: "Browse commit files", Description: "Browse files changed in selected commit"},
+		{ID: "log-commit-view", Label: "Browse commit files", Description: "Browse files changed in selected commit"},
 	}
 
-	scr := NewCommandPaletteScreen(items, 100, 24, theme.Dracula())
+	scr := makeTestPalette(items, 100)
 	scr.FilterInput.SetValue("browse")
 	scr.applyFilter()
 
 	require.Len(t, scr.Filtered, 4)
 	assert.Equal(t, "Log Pane", scr.Filtered[0].Label)
-	assert.Equal(t, "commit-view", scr.Filtered[1].ID)
+	assert.Equal(t, "log-commit-view", scr.Filtered[1].ID)
 	assert.Equal(t, "Git Operations", scr.Filtered[2].Label)
 	assert.Equal(t, "pr", scr.Filtered[3].ID)
 	assert.Equal(t, 1, scr.Cursor, "cursor should reset to the strongest match")
@@ -144,7 +148,7 @@ func TestCommandPalettePrefersLabelMatchWithinSection(t *testing.T) {
 		{ID: "browse-files", Label: "Browse files", Description: "Inspect the selected commit files"},
 	}
 
-	scr := NewCommandPaletteScreen(items, 100, 24, theme.Dracula())
+	scr := makeTestPalette(items, 100)
 	scr.FilterInput.SetValue("browse")
 	scr.applyFilter()
 
@@ -156,15 +160,15 @@ func TestCommandPalettePrefersLabelMatchWithinSection(t *testing.T) {
 func TestCommandPaletteKeepsFuzzyFallback(t *testing.T) {
 	items := []PaletteItem{
 		{Label: "Log Pane", IsSection: true},
-		{ID: "commit-view", Label: "Browse commit files", Description: "Browse files changed in selected commit"},
+		{ID: "log-commit-view", Label: "Browse commit files", Description: "Browse files changed in selected commit"},
 	}
 
-	scr := NewCommandPaletteScreen(items, 100, 24, theme.Dracula())
+	scr := makeTestPalette(items, 100)
 	scr.FilterInput.SetValue("brcf")
 	scr.applyFilter()
 
 	require.Len(t, scr.Filtered, 2)
-	assert.Equal(t, "commit-view", scr.Filtered[1].ID)
+	assert.Equal(t, "log-commit-view", scr.Filtered[1].ID)
 }
 
 func TestCommandPaletteScrollIndicators(t *testing.T) {
@@ -192,7 +196,7 @@ func TestCommandPaletteFooterFormat(t *testing.T) {
 		{ID: "gamma", Label: "Gamma"},
 	}
 
-	scr := NewCommandPaletteScreen(items, 100, 24, theme.Dracula())
+	scr := makeTestPalette(items, 100)
 	view := scr.View()
 
 	// Footer should contain item count and navigation hints

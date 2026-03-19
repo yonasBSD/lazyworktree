@@ -55,10 +55,7 @@ func TestAIBranchNameSanitization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &config.AppConfig{
-				WorktreeDir: t.TempDir(),
-			}
-			m := NewModel(cfg, "")
+			m := newTestModel(t)
 
 			m.createFromCurrent.randomName = testFallback
 
@@ -89,10 +86,7 @@ func TestAIBranchNameSanitization(t *testing.T) {
 }
 
 func TestCacheCleanupOnSubmit(t *testing.T) {
-	cfg := &config.AppConfig{
-		WorktreeDir: t.TempDir(),
-	}
-	m := NewModel(cfg, "")
+	m := newTestModel(t)
 	m.state.data.worktrees = []*models.WorktreeInfo{
 		{Path: "/tmp/main", Branch: mainWorktreeName, IsMain: true},
 	}
@@ -141,10 +135,7 @@ func TestCacheCleanupOnSubmit(t *testing.T) {
 }
 
 func TestShowBranchNameInputUsesDefaultName(t *testing.T) {
-	cfg := &config.AppConfig{
-		WorktreeDir: t.TempDir(),
-	}
-	m := NewModel(cfg, "")
+	m := newTestModel(t)
 
 	cmd := m.showBranchNameInput(mainWorktreeName, mainWorktreeName)
 	if cmd == nil {
@@ -352,8 +343,7 @@ func TestShowCommandPaletteIncludesZellijCommands(t *testing.T) {
 }
 
 func TestShowCommandPaletteHasSectionHeaders(t *testing.T) {
-	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
-	m := NewModel(cfg, "")
+	m := newTestModel(t)
 	m.showCommandPalette()
 
 	if !m.state.ui.screenManager.IsActive() || m.state.ui.screenManager.Type() != appscreen.TypePalette {
@@ -374,8 +364,7 @@ func TestShowCommandPaletteHasSectionHeaders(t *testing.T) {
 }
 
 func TestShowCommandPaletteFirstItemIsSection(t *testing.T) {
-	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
-	m := NewModel(cfg, "")
+	m := newTestModel(t)
 	m.showCommandPalette()
 
 	if !m.state.ui.screenManager.IsActive() || m.state.ui.screenManager.Type() != appscreen.TypePalette {
@@ -392,8 +381,7 @@ func TestShowCommandPaletteFirstItemIsSection(t *testing.T) {
 }
 
 func TestShowCommandPaletteHasAllActions(t *testing.T) {
-	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
-	m := NewModel(cfg, "")
+	m := newTestModel(t)
 	m.showCommandPalette()
 
 	if !m.state.ui.screenManager.IsActive() || m.state.ui.screenManager.Type() != appscreen.TypePalette {
@@ -401,14 +389,14 @@ func TestShowCommandPaletteHasAllActions(t *testing.T) {
 	}
 
 	expectedIDs := []string{
-		"create", "delete", "rename", "annotate", "browse-tags", "absorb", "prune",
-		"create-from-current", "create-from-branch", "create-from-commit",
-		"create-from-pr", "create-from-issue", "create-freeform",
-		"diff", "refresh", "fetch", "push", "sync", "fetch-pr-data", "pr", "lazygit", "run-command",
-		"stage-file", "commit-staged", "commit-all", "edit-file", "delete-file",
-		"cherry-pick", "commit-view",
-		"zoom-toggle", "filter", "search", "focus-worktrees", "focus-status", "focus-log", "sort-cycle",
-		"theme", "taskboard", "help",
+		"worktree-create", "worktree-delete", "worktree-rename", "worktree-annotate", "worktree-browse-tags", "worktree-absorb", "worktree-prune",
+		"worktree-create-from-current", "worktree-create-from-branch", "worktree-create-from-commit",
+		"worktree-create-from-pr", "worktree-create-from-issue", "worktree-create-freeform",
+		"git-diff", "git-refresh", "git-fetch", "git-push", "git-sync", "git-fetch-pr-data", "git-pr", "git-lazygit", "git-run-command",
+		"status-stage-file", "status-commit-staged", "status-commit-all", "status-edit-file", "status-delete-file",
+		"log-cherry-pick", "log-commit-view",
+		"nav-zoom-toggle", "nav-filter", "nav-search", "nav-focus-worktrees", "nav-focus-status", "nav-focus-log", "nav-sort-cycle",
+		"settings-theme", "settings-taskboard", "settings-help",
 	}
 
 	paletteScreen := m.state.ui.screenManager.Current().(*appscreen.CommandPaletteScreen)
@@ -586,7 +574,7 @@ func TestShowCommandPaletteCommitEntryOpensCommitScreen(t *testing.T) {
 	paletteScreen := m.state.ui.screenManager.Current().(*appscreen.CommandPaletteScreen)
 	commitIndex := -1
 	for i, item := range paletteScreen.Items {
-		if item.ID == "commit-staged" {
+		if item.ID == "status-commit-staged" {
 			commitIndex = i
 			if item.Label != "Open commit screen" {
 				t.Fatalf("expected commit palette label %q, got %q", "Open commit screen", item.Label)
@@ -595,7 +583,7 @@ func TestShowCommandPaletteCommitEntryOpensCommitScreen(t *testing.T) {
 		}
 	}
 	if commitIndex < 0 {
-		t.Fatal("commit-staged palette item not found")
+		t.Fatal("status-commit-staged palette item not found")
 	}
 
 	paletteScreen.Cursor = commitIndex
@@ -974,9 +962,9 @@ func TestCommandPaletteMRUDeduplication(t *testing.T) {
 	}
 	m := NewModel(cfg, "")
 	m.paletteHistory = []commandPaletteUsage{
-		{ID: "refresh", Timestamp: time.Now().Unix(), Count: 5},
-		{ID: "create", Timestamp: time.Now().Unix() - 100, Count: 3},
-		{ID: "diff", Timestamp: time.Now().Unix() - 200, Count: 2},
+		{ID: "git-refresh", Timestamp: time.Now().Unix(), Count: 5},
+		{ID: "worktree-create", Timestamp: time.Now().Unix() - 100, Count: 3},
+		{ID: "git-diff", Timestamp: time.Now().Unix() - 200, Count: 2},
 	}
 	m.state.view.WindowWidth = 100
 	m.state.view.WindowHeight = 50
@@ -1030,10 +1018,10 @@ func TestCommandPaletteMRUDeduplication(t *testing.T) {
 				t.Errorf("'create' found outside MRU section at index %d", i)
 			}
 		}
-		if item.ID == "diff" {
+		if item.ID == "git-diff" {
 			diffCount++
 			if !inMRUSection {
-				t.Errorf("'diff' found outside MRU section at index %d", i)
+				t.Errorf("'git-diff' found outside MRU section at index %d", i)
 			}
 		}
 	}
@@ -1058,7 +1046,7 @@ func TestCommandPaletteMRUDisabled(t *testing.T) {
 	}
 	m := NewModel(cfg, "")
 	m.paletteHistory = []commandPaletteUsage{
-		{ID: "refresh", Timestamp: time.Now().Unix(), Count: 5},
+		{ID: "git-refresh", Timestamp: time.Now().Unix(), Count: 5},
 	}
 	m.state.view.WindowWidth = 100
 	m.state.view.WindowHeight = 50
@@ -1127,10 +1115,7 @@ func TestCommandPaletteMRUEmptyHistory(t *testing.T) {
 }
 
 func TestShowCherryPickNotInLogPane(t *testing.T) {
-	cfg := &config.AppConfig{
-		WorktreeDir: t.TempDir(),
-	}
-	m := NewModel(cfg, "")
+	m := newTestModel(t)
 	m.state.view.FocusedPane = 0 // Not in commit pane
 
 	cmd := m.showCherryPick()
@@ -1140,10 +1125,7 @@ func TestShowCherryPickNotInLogPane(t *testing.T) {
 }
 
 func TestShowCherryPickEmptyLogEntries(t *testing.T) {
-	cfg := &config.AppConfig{
-		WorktreeDir: t.TempDir(),
-	}
-	m := NewModel(cfg, "")
+	m := newTestModel(t)
 	m.state.view.FocusedPane = 3 // Commit pane
 	m.state.data.logEntries = []commitLogEntry{}
 
@@ -1154,10 +1136,7 @@ func TestShowCherryPickEmptyLogEntries(t *testing.T) {
 }
 
 func TestShowCherryPickNoOtherWorktrees(t *testing.T) {
-	cfg := &config.AppConfig{
-		WorktreeDir: t.TempDir(),
-	}
-	m := NewModel(cfg, "")
+	m := newTestModel(t)
 	m.state.view.FocusedPane = 3 // Commit pane
 	m.state.data.logEntries = []commitLogEntry{
 		{sha: "abc1234", message: "Test commit"},
@@ -1179,10 +1158,7 @@ func TestShowCherryPickNoOtherWorktrees(t *testing.T) {
 }
 
 func TestShowCherryPickCreatesListSelection(t *testing.T) {
-	cfg := &config.AppConfig{
-		WorktreeDir: t.TempDir(),
-	}
-	m := NewModel(cfg, "")
+	m := newTestModel(t)
 	m.state.view.FocusedPane = 3 // Commit pane
 	m.state.data.logEntries = []commitLogEntry{
 		{sha: "abc1234", message: "Test commit"},
@@ -1215,10 +1191,7 @@ func TestShowCherryPickCreatesListSelection(t *testing.T) {
 }
 
 func TestShowCherryPickExcludesSourceWorktree(t *testing.T) {
-	cfg := &config.AppConfig{
-		WorktreeDir: t.TempDir(),
-	}
-	m := NewModel(cfg, "")
+	m := newTestModel(t)
 	m.state.view.FocusedPane = 3
 	m.state.data.logEntries = []commitLogEntry{
 		{sha: "abc1234", message: "Test commit"},
@@ -1248,10 +1221,7 @@ func TestShowCherryPickExcludesSourceWorktree(t *testing.T) {
 }
 
 func TestShowCherryPickMarksDirtyWorktrees(t *testing.T) {
-	cfg := &config.AppConfig{
-		WorktreeDir: t.TempDir(),
-	}
-	m := NewModel(cfg, "")
+	m := newTestModel(t)
 	m.state.view.FocusedPane = 3
 	m.state.data.logEntries = []commitLogEntry{
 		{sha: "abc1234", message: "Test commit"},
@@ -1290,10 +1260,7 @@ func TestShowCherryPickMarksDirtyWorktrees(t *testing.T) {
 }
 
 func TestRenderScreenVariants(t *testing.T) {
-	cfg := &config.AppConfig{
-		WorktreeDir: t.TempDir(),
-	}
-	m := NewModel(cfg, "")
+	m := newTestModel(t)
 	m.setWindowSize(120, 40)
 
 	// CommitScreen is now managed by screenManager
@@ -1363,8 +1330,7 @@ func TestRenderScreenVariants(t *testing.T) {
 }
 
 func TestErrMsgShowsInfo(t *testing.T) {
-	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
-	m := NewModel(cfg, "")
+	m := newTestModel(t)
 
 	_, _ = m.Update(errMsg{err: errors.New("boom")})
 

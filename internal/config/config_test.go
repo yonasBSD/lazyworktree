@@ -2714,18 +2714,18 @@ func TestParseKeybindings(t *testing.T) {
 			input: map[string]any{
 				"keybindings": map[string]any{
 					"universal": map[string]any{
-						"G": "lazygit",
-						"F": "fetch",
+						"G": "git-lazygit",
+						"F": "git-fetch",
 					},
 					"worktrees": map[string]any{
-						"x": "delete",
+						"x": "worktree-delete",
 					},
 				},
 			},
 			wantLen: 2,
 			wantKeys: map[string]map[string]string{
-				"universal": {"G": "lazygit", "F": "fetch"},
-				"worktrees": {"x": "delete"},
+				"universal": {"G": "git-lazygit", "F": "git-fetch"},
+				"worktrees": {"x": "worktree-delete"},
 			},
 		},
 		{
@@ -2733,19 +2733,19 @@ func TestParseKeybindings(t *testing.T) {
 			input: map[string]any{
 				"keybindings": map[string]any{
 					"universal": map[string]any{
-						"  G  ": "  lazygit  ",
+						"  G  ": "  git-lazygit  ",
 					},
 				},
 			},
 			wantKeys: map[string]map[string]string{
-				"universal": {"G": "lazygit"},
+				"universal": {"G": "git-lazygit"},
 			},
 		},
 		{
 			name: "flat map returns empty",
 			input: map[string]any{
 				"keybindings": map[string]any{
-					"G": "lazygit",
+					"G": "git-lazygit",
 				},
 			},
 			wantLen: 0,
@@ -2781,30 +2781,30 @@ func TestKeybindingsConfigAllForPane(t *testing.T) {
 	t.Parallel()
 
 	kb := KeybindingsConfig{
-		PaneUniversal: {"G": "lazygit", "F": "fetch"},
-		PaneWorktrees: {"G": "delete", "x": "prune"},
+		PaneUniversal: {"G": "git-lazygit", "F": "git-fetch"},
+		PaneWorktrees: {"G": "worktree-delete", "x": "worktree-prune"},
 	}
 
 	t.Run("universal only", func(t *testing.T) {
 		t.Parallel()
 		result := kb.AllForPane(PaneUniversal)
-		assert.Equal(t, "lazygit", result["G"])
-		assert.Equal(t, "fetch", result["F"])
+		assert.Equal(t, "git-lazygit", result["G"])
+		assert.Equal(t, "git-fetch", result["F"])
 		assert.Empty(t, result["x"])
 	})
 
 	t.Run("pane overrides universal", func(t *testing.T) {
 		t.Parallel()
 		result := kb.AllForPane(PaneWorktrees)
-		assert.Equal(t, "delete", result["G"], "pane-specific should override universal")
-		assert.Equal(t, "fetch", result["F"], "universal should be inherited")
-		assert.Equal(t, "prune", result["x"], "pane-specific key should be present")
+		assert.Equal(t, "worktree-delete", result["G"], "pane-specific should override universal")
+		assert.Equal(t, "git-fetch", result["F"], "universal should be inherited")
+		assert.Equal(t, "worktree-prune", result["x"], "pane-specific key should be present")
 	})
 
 	t.Run("pane with no specific bindings", func(t *testing.T) {
 		t.Parallel()
 		result := kb.AllForPane(PaneStatus)
-		assert.Equal(t, "lazygit", result["G"])
-		assert.Equal(t, "fetch", result["F"])
+		assert.Equal(t, "git-lazygit", result["G"])
+		assert.Equal(t, "git-fetch", result["F"])
 	})
 }
