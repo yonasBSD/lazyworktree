@@ -149,13 +149,118 @@ func classifyAgentProcess(command, args string) (models.AgentKind, string, bool)
 	switch {
 	case strings.Contains(args, "Claude.app") || base == "Claude":
 		return models.AgentKindClaude, "desktop", true
-	case strings.EqualFold(base, "claude"):
+	case isClaudeCLIProcess(base, args):
 		return models.AgentKindClaude, "cli", true
 	case strings.EqualFold(base, "pi"):
 		return models.AgentKindPi, "cli", true
 	default:
 		return "", "", false
 	}
+}
+
+func isClaudeCLIProcess(commandBase, args string) bool {
+	base := strings.ToLower(filepath.Base(strings.TrimSpace(commandBase)))
+	if base == "claude" || base == "claude-code" {
+		return true
+	}
+
+	tokens := splitCommandTokens(args)
+	switch base {
+	case "node", "bun":
+		return nodeWrapperInvokesClaude(tokens, base)
+	case "npm", "npx", "pnpm", "yarn":
+		return packageManagerInvokesClaude(tokens, base)
+	case "sh", "bash", "zsh", "dash", "ksh", "fish":
+		return shellInvokesClaude(tokens, base)
+	default:
+		return false
+	}
+}
+
+func splitCommandTokens(args string) []string {
+	raw := strings.Fields(strings.TrimSpace(args))
+	tokens := make([]string, 0, len(raw))
+	for _, token := range raw {
+		token = strings.Trim(strings.TrimSpace(token), `"'`)
+		if token != "" {
+			tokens = append(tokens, token)
+		}
+	}
+	return tokens
+}
+
+func nodeWrapperInvokesClaude(tokens []string, commandBase string) bool {
+	for _, token := range trimLeadingCommand(tokens, commandBase) {
+		if strings.HasPrefix(token, "-") {
+			continue
+		}
+		return isClaudeCLIToken(token)
+	}
+	return false
+}
+
+func packageManagerInvokesClaude(tokens []string, commandBase string) bool {
+	remaining := trimLeadingCommand(tokens, commandBase)
+	for i, token := range remaining {
+		if strings.HasPrefix(token, "-") {
+			continue
+		}
+		switch strings.ToLower(token) {
+		case "exec", "dlx", "x":
+			for _, candidate := range remaining[i+1:] {
+				if strings.HasPrefix(candidate, "-") {
+					continue
+				}
+				return isClaudeCLIToken(candidate)
+			}
+			return false
+		default:
+			return isClaudeCLIToken(token)
+		}
+	}
+	return false
+}
+
+func shellInvokesClaude(tokens []string, commandBase string) bool {
+	remaining := trimLeadingCommand(tokens, commandBase)
+	shellCommandExpected := false
+	for _, token := range remaining {
+		if token == "" {
+			continue
+		}
+		if shellCommandExpected {
+			return isClaudeCLIToken(token)
+		}
+		switch token {
+		case "-c", "-lc", "-ic":
+			shellCommandExpected = true
+		}
+	}
+	return false
+}
+
+func trimLeadingCommand(tokens []string, commandBase string) []string {
+	if len(tokens) == 0 {
+		return nil
+	}
+	if strings.EqualFold(filepath.Base(tokens[0]), commandBase) {
+		return tokens[1:]
+	}
+	return tokens
+}
+
+func isClaudeCLIToken(token string) bool {
+	token = strings.Trim(strings.TrimSpace(token), `"'`)
+	if token == "" {
+		return false
+	}
+
+	lowerToken := strings.ToLower(token)
+	switch strings.ToLower(filepath.Base(token)) {
+	case "claude", "claude-code":
+		return true
+	}
+	return strings.Contains(lowerToken, "@anthropic-ai/claude-code")
 }
 
 func applyAgentProcessLSOF(processes []*AgentProcess, out string) {

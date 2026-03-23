@@ -3,6 +3,7 @@ package services
 import (
 	"bufio"
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -170,8 +171,10 @@ func (s *AgentSessionService) discoverSessionsFromDir(
 		if !entry.IsDir() {
 			continue
 		}
-		jsonlFiles, _ := filepath.Glob(filepath.Join(root, entry.Name(), "*.jsonl"))
-		for _, path := range jsonlFiles {
+		_ = filepath.WalkDir(filepath.Join(root, entry.Name()), func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d == nil || d.IsDir() || filepath.Ext(path) != ".jsonl" {
+				return nil
+			}
 			seen[path] = struct{}{}
 			session, err := s.cachedSession(path, func() (*models.AgentSession, error) {
 				return parse(path, entry.Name())
@@ -179,7 +182,8 @@ func (s *AgentSessionService) discoverSessionsFromDir(
 			if err == nil && session != nil {
 				sessions = append(sessions, session)
 			}
-		}
+			return nil
+		})
 	}
 	return sessions, nil
 }
@@ -246,15 +250,6 @@ func piSessionsDir() string {
 	return filepath.Join(home, ".pi", "agent", "sessions")
 }
 
-type claudeJSONLEntry struct {
-	Type      string              `json:"type"`
-	SessionID string              `json:"sessionId"`
-	CWD       string              `json:"cwd"`
-	GitBranch string              `json:"gitBranch"`
-	Timestamp string              `json:"timestamp"`
-	Message   *claudeJSONLMessage `json:"message"`
-}
-
 type claudeJSONLMessage struct {
 	Role        string          `json:"role"`
 	Model       string          `json:"model"`
@@ -265,10 +260,49 @@ type claudeJSONLMessage struct {
 
 type contentBlock struct {
 	Type      string          `json:"type"`
+	ID        string          `json:"id"`
 	Name      string          `json:"name"`
 	Text      string          `json:"text"`
+	ToolUseID string          `json:"tool_use_id"`
 	Input     json.RawMessage `json:"input"`
 	Arguments json.RawMessage `json:"arguments"`
+}
+
+type claudeEnvelope struct {
+	Type      string              `json:"type"`
+	CWD       string              `json:"cwd"`
+	GitBranch string              `json:"gitBranch"`
+	Timestamp string              `json:"timestamp"`
+	Message   *claudeJSONLMessage `json:"message"`
+	Data      *claudeProgressData `json:"data"`
+}
+
+type claudeProgressData struct {
+	Type    string                 `json:"type"`
+	AgentID string                 `json:"agentId"`
+	Message *claudeProgressMessage `json:"message"`
+}
+
+type claudeProgressMessage struct {
+	Type      string              `json:"type"`
+	Timestamp string              `json:"timestamp"`
+	Message   *claudeJSONLMessage `json:"message"`
+}
+
+type normalizedClaudeEntry struct {
+	Type              string
+	CWD               string
+	GitBranch         string
+	Timestamp         string
+	Message           *claudeJSONLMessage
+	FromAgentProgress bool
+}
+
+type pendingClaudeTool struct {
+	Block             contentBlock
+	Timestamp         time.Time
+	Order             int
+	FromAgentProgress bool
 }
 
 func (m *claudeJSONLMessage) parseContent() {
@@ -308,60 +342,94 @@ func parseClaudeSession(path, encodedDir string) (*models.AgentSession, error) {
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
 
-	var lastMeaningful *claudeJSONLEntry
+	var lastMeaningful *normalizedClaudeEntry
+	pendingTools := make(map[string]*pendingClaudeTool)
+	pendingToolOrder := 0
 	for scanner.Scan() {
-		var entry claudeJSONLEntry
-		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+		var envelope claudeEnvelope
+		if err := json.Unmarshal(scanner.Bytes(), &envelope); err != nil {
 			continue
 		}
-		if entry.Message != nil {
-			entry.Message.parseContent()
-		}
 
-		ts, _ := time.Parse(time.RFC3339Nano, entry.Timestamp)
+		ts, _ := time.Parse(time.RFC3339Nano, envelope.Timestamp)
 		if !ts.IsZero() {
 			session.LastActivity = ts
 		}
-		if session.CWD == "" && entry.CWD != "" {
-			session.CWD = entry.CWD
+		if session.CWD == "" && envelope.CWD != "" {
+			session.CWD = envelope.CWD
 		}
-		if session.GitBranch == "" && entry.GitBranch != "" {
-			session.GitBranch = entry.GitBranch
+		if session.GitBranch == "" && envelope.GitBranch != "" {
+			session.GitBranch = envelope.GitBranch
 		}
-		if entry.Message != nil && entry.Message.Model != "" {
-			session.Model = entry.Message.Model
-		}
-		if entry.Message != nil {
-			switch entry.Type {
-			case "user":
-				if text := firstClaudeText(entry.Message); text != "" {
-					session.LastPromptText = text
-				}
-			case "assistant":
-				if text := firstClaudeText(entry.Message); text != "" {
-					session.LastReplyText = text
-				}
-			}
-		}
-		if entry.Type == "summary" && !session.LastActivity.IsZero() {
+		if envelope.Type == "summary" && !session.LastActivity.IsZero() {
 			session.LastSummaryAt = session.LastActivity
 		}
-		switch entry.Type {
-		case "assistant", "user":
-			lastMeaningful = &entry
-		}
-		if entry.Message != nil {
-			for _, block := range entry.Message.Content {
-				if block.Type != "tool_use" {
-					continue
+
+		for _, entry := range normalizedClaudeEntries(envelope) {
+			if entry.Message != nil {
+				entry.Message.parseContent()
+			}
+			entryTS, _ := time.Parse(time.RFC3339Nano, entry.Timestamp)
+			if !entryTS.IsZero() {
+				session.LastActivity = entryTS
+			}
+			if session.CWD == "" && entry.CWD != "" {
+				session.CWD = entry.CWD
+			}
+			if session.GitBranch == "" && entry.GitBranch != "" {
+				session.GitBranch = entry.GitBranch
+			}
+			if entry.Message != nil && entry.Message.Model != "" {
+				session.Model = entry.Message.Model
+			}
+			if entry.Message != nil && !entry.FromAgentProgress {
+				switch entry.Type {
+				case "user":
+					if text := firstClaudeText(entry.Message); text != "" {
+						session.LastPromptText = text
+					}
+				case "assistant":
+					if text := firstClaudeText(entry.Message); text != "" {
+						session.LastReplyText = text
+					}
 				}
-				session.LastToolName = block.Name
-				session.LastToolAt = ts
-				if path := extractTargetPath(block.Input); path != "" {
-					session.LastTargetPath = path
+			}
+			switch entry.Type {
+			case "assistant", "user":
+				if !entry.FromAgentProgress {
+					copied := entry
+					lastMeaningful = &copied
 				}
-				if command := extractCommandText(block.Input); command != "" {
-					session.LastCommand = command
+			}
+			if entry.Message != nil {
+				for i := range entry.Message.Content {
+					block := &entry.Message.Content[i]
+					switch block.Type {
+					case "tool_use":
+						if !entry.FromAgentProgress {
+							session.LastToolName = block.Name
+							session.LastToolAt = entryTS
+							if path := extractTargetPath(block.Input); path != "" {
+								session.LastTargetPath = path
+							}
+							if command := extractCommandText(block.Input); command != "" {
+								session.LastCommand = command
+							}
+						}
+						if block.ID != "" {
+							pendingToolOrder++
+							pendingTools[block.ID] = &pendingClaudeTool{
+								Block:             *block,
+								Timestamp:         entryTS,
+								Order:             pendingToolOrder,
+								FromAgentProgress: entry.FromAgentProgress,
+							}
+						}
+					case "tool_result":
+						if block.ToolUseID != "" {
+							delete(pendingTools, block.ToolUseID)
+						}
+					}
 				}
 			}
 		}
@@ -379,7 +447,8 @@ func parseClaudeSession(path, encodedDir string) (*models.AgentSession, error) {
 	if lastMeaningful != nil {
 		role = lastMeaningful.Type
 		if lastMeaningful.Message != nil {
-			for _, block := range lastMeaningful.Message.Content {
+			for i := range lastMeaningful.Message.Content {
+				block := &lastMeaningful.Message.Content[i]
 				if block.Type == "tool_use" {
 					hasToolUse = true
 					toolName = block.Name
@@ -391,9 +460,85 @@ func parseClaudeSession(path, encodedDir string) (*models.AgentSession, error) {
 			}
 		}
 	}
-	applyAgentStatus(session, role, hasToolUse, toolName, isToolResult)
+	if pending := newestPendingClaudeTool(pendingTools); pending != nil {
+		session.CurrentTool = pending.Block.Name
+		session.LastToolName = pending.Block.Name
+		session.LastToolAt = pending.Timestamp
+		if path := extractTargetPath(pending.Block.Input); path != "" {
+			session.LastTargetPath = path
+		}
+		if command := extractCommandText(pending.Block.Input); command != "" {
+			session.LastCommand = command
+		}
+		if pending.FromAgentProgress {
+			session.Status = models.AgentSessionStatusWaitingApproval
+		} else {
+			session.Status = models.AgentSessionStatusExecutingTool
+		}
+		session.Activity = resolveAgentActivity(
+			session.LastSummaryAt,
+			session.LastToolAt,
+			session.LastToolName,
+			session.CurrentTool,
+			session.IsOpen,
+			session.Status,
+			session.LastActivity,
+			time.Now(),
+		)
+	} else {
+		applyAgentStatus(session, role, hasToolUse, toolName, isToolResult)
+	}
 	session.TaskLabel = deriveAgentTaskLabel(session)
 	return session, nil
+}
+
+func normalizedClaudeEntries(envelope claudeEnvelope) []normalizedClaudeEntry {
+	entries := make([]normalizedClaudeEntry, 0, 2)
+	if envelope.Message != nil && (envelope.Type == "assistant" || envelope.Type == "user") {
+		entries = append(entries, normalizedClaudeEntry{
+			Type:      envelope.Type,
+			CWD:       envelope.CWD,
+			GitBranch: envelope.GitBranch,
+			Timestamp: envelope.Timestamp,
+			Message:   envelope.Message,
+		})
+	}
+	if envelope.Type == "progress" && envelope.Data != nil && envelope.Data.Type == "agent_progress" &&
+		envelope.Data.Message != nil && envelope.Data.Message.Message != nil {
+		entries = append(entries, normalizedClaudeEntry{
+			Type:              envelope.Data.Message.Type,
+			CWD:               envelope.CWD,
+			GitBranch:         envelope.GitBranch,
+			Timestamp:         firstNonEmpty(envelope.Data.Message.Timestamp, envelope.Timestamp),
+			Message:           envelope.Data.Message.Message,
+			FromAgentProgress: true,
+		})
+	}
+	return entries
+}
+
+func newestPendingClaudeTool(pending map[string]*pendingClaudeTool) *pendingClaudeTool {
+	var newest *pendingClaudeTool
+	for _, tool := range pending {
+		if tool == nil {
+			continue
+		}
+		if newest == nil ||
+			tool.Timestamp.After(newest.Timestamp) ||
+			(tool.Timestamp.Equal(newest.Timestamp) && tool.Order > newest.Order) {
+			newest = tool
+		}
+	}
+	return newest
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func applyAgentStatus(session *models.AgentSession, role string, hasToolUse bool, toolName string, isToolResult bool) {
@@ -432,7 +577,28 @@ func decodeClaudeProjectDir(name string) string {
 	if name == "" {
 		return ""
 	}
-	return "/" + strings.ReplaceAll(name, "-", "/")
+	var decoded strings.Builder
+	decoded.Grow(len(name) + 1)
+	for i := 0; i < len(name); i++ {
+		switch {
+		case name[i] == '-' && i+1 < len(name) && name[i+1] == '-':
+			decoded.WriteByte('-')
+			i++
+		case name[i] == '-':
+			decoded.WriteByte(filepath.Separator)
+		default:
+			decoded.WriteByte(name[i])
+		}
+	}
+
+	result := decoded.String()
+	if result == "" {
+		return ""
+	}
+	if !strings.HasPrefix(result, string(filepath.Separator)) {
+		result = string(filepath.Separator) + result
+	}
+	return filepath.Clean(result)
 }
 
 type piEntry struct {
@@ -518,7 +684,9 @@ func parsePiSession(path, encodedDir string) (*models.AgentSession, error) {
 					session.LastReplyText = text
 				}
 			}
-			for _, block := range parsePiBlocks(entry.Message.Content) {
+			blocks := parsePiBlocks(entry.Message.Content)
+			for i := range blocks {
+				block := &blocks[i]
 				if block.Type != "toolCall" {
 					continue
 				}
@@ -549,7 +717,9 @@ func parsePiSession(path, encodedDir string) (*models.AgentSession, error) {
 			role = "user"
 			isToolResult = true
 		}
-		for _, block := range parsePiBlocks(lastMessage.Message.Content) {
+		blocks := parsePiBlocks(lastMessage.Message.Content)
+		for i := range blocks {
+			block := &blocks[i]
 			if block.Type == "toolCall" {
 				hasToolUse = true
 				toolName = normalizePiToolName(block.Name)
@@ -607,7 +777,8 @@ func decodePiSessionDir(name string) string {
 }
 
 func scanForText(blocks []contentBlock) string {
-	for _, b := range blocks {
+	for i := range blocks {
+		b := &blocks[i]
 		if b.Type == "text" && strings.TrimSpace(b.Text) != "" {
 			return compactWhitespace(b.Text)
 		}
@@ -778,6 +949,9 @@ func resolveAgentActivity(lastSummaryAt, lastToolAt time.Time, lastToolName, cur
 		return models.AgentActivityCompacting
 	}
 	if !lastToolAt.IsZero() && now.Sub(lastToolAt) < agentActivityTimeout {
+		if status == models.AgentSessionStatusWaitingApproval {
+			return models.AgentActivityApproval
+		}
 		return toolActivity(lastToolName)
 	}
 
@@ -789,6 +963,18 @@ func resolveAgentActivity(lastSummaryAt, lastToolAt time.Time, lastToolName, cur
 			return models.AgentActivityWaiting
 		}
 		return models.AgentActivityIdle
+	}
+	if status == models.AgentSessionStatusWaitingApproval {
+		if isOpen {
+			return models.AgentActivityApproval
+		}
+		if now.Sub(lastActivity) < agentWaitingTimeout {
+			return models.AgentActivityApproval
+		}
+		return models.AgentActivityIdle
+	}
+	if status == models.AgentSessionStatusExecutingTool && isOpen {
+		return toolActivity(currentTool)
 	}
 
 	if lastActivity.IsZero() || now.Sub(lastActivity) > agentActivityTimeout {

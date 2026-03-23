@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -267,6 +268,326 @@ func TestAgentSessionServiceRefreshInvalidatesCache(t *testing.T) {
 	}
 }
 
+func TestParseClaudeSessionDecodesHyphenatedFallbackCWD(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	path := filepath.Join(root, "claude.jsonl")
+	ts := time.Now().UTC().Format(time.RFC3339Nano)
+	writeJSONLLines(t, path,
+		mustJSONLine(t, map[string]any{
+			"type":      "assistant",
+			"timestamp": ts,
+			"message": map[string]any{
+				"role": "assistant",
+				"content": []map[string]any{
+					{"type": "tool_use", "name": "Read"},
+				},
+			},
+		}),
+	)
+
+	session, err := parseClaudeSession(path, "-Users-test--team-my-worktree")
+	if err != nil {
+		t.Fatalf("parseClaudeSession returned error: %v", err)
+	}
+
+	if session.CWD != "/Users/test-team/my/worktree" {
+		t.Fatalf("expected decoded cwd with preserved hyphen, got %q", session.CWD)
+	}
+}
+
+func TestAgentSessionServiceRefreshFindsNestedClaudeJSONL(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	claudeRoot := filepath.Join(root, "claude")
+	worktreePath := filepath.Join(root, "worktrees", "feature")
+	ts := time.Now().UTC().Format(time.RFC3339Nano)
+	sessionPath := filepath.Join(claudeRoot, "project-a", "session-1", "subagents", "agent-a.jsonl")
+
+	writeJSONLLines(t, sessionPath,
+		mustJSONLine(t, map[string]any{
+			"type":      "assistant",
+			"cwd":       worktreePath,
+			"timestamp": ts,
+			"message": map[string]any{
+				"role": "assistant",
+				"content": []map[string]any{
+					{"type": "tool_use", "name": "Read"},
+				},
+			},
+		}),
+	)
+
+	service := NewAgentSessionServiceWithRoots(claudeRoot, "", nil)
+	sessions, err := service.Refresh()
+	if err != nil {
+		t.Fatalf("Refresh returned error: %v", err)
+	}
+
+	if len(sessions) != 1 {
+		t.Fatalf("expected 1 nested Claude session, got %d", len(sessions))
+	}
+	if sessions[0].JSONLPath != sessionPath {
+		t.Fatalf("expected nested session path %q, got %q", sessionPath, sessions[0].JSONLPath)
+	}
+}
+
+func TestParseClaudeSessionTracksNestedAgentApproval(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	worktreePath := filepath.Join(root, "worktrees", "feature")
+	path := filepath.Join(root, "claude.jsonl")
+	userTS := time.Now().UTC()
+	toolTS := userTS.Add(time.Second)
+
+	writeJSONLLines(t, path,
+		mustJSONLine(t, map[string]any{
+			"type":      "user",
+			"cwd":       worktreePath,
+			"timestamp": userTS.Format(time.RFC3339Nano),
+			"message": map[string]any{
+				"role":    "user",
+				"content": "Split handlers",
+			},
+		}),
+		mustJSONLine(t, map[string]any{
+			"type":      "assistant",
+			"cwd":       worktreePath,
+			"timestamp": userTS.Format(time.RFC3339Nano),
+			"message": map[string]any{
+				"role": "assistant",
+				"content": []map[string]any{
+					{"type": "tool_use", "id": "agent-tool", "name": "Agent", "input": map[string]any{"description": "Design app/handlers.go split"}},
+				},
+			},
+		}),
+		mustJSONLine(t, map[string]any{
+			"type":      "progress",
+			"cwd":       worktreePath,
+			"timestamp": toolTS.Format(time.RFC3339Nano),
+			"data": map[string]any{
+				"type":    "agent_progress",
+				"agentId": "agent-123",
+				"message": map[string]any{
+					"type":      "assistant",
+					"timestamp": toolTS.Format(time.RFC3339Nano),
+					"message": map[string]any{
+						"role": "assistant",
+						"content": []map[string]any{
+							{
+								"type": "tool_use",
+								"id":   "bash-tool",
+								"name": "Bash",
+								"input": map[string]any{
+									"command":     "grep -n '^func Test' internal/app/handlers_test.go",
+									"description": "Analyse test function patterns",
+								},
+							},
+						},
+					},
+				},
+			},
+		}),
+	)
+
+	session, err := parseClaudeSession(path, "")
+	if err != nil {
+		t.Fatalf("parseClaudeSession returned error: %v", err)
+	}
+
+	if session.Status != models.AgentSessionStatusWaitingApproval {
+		t.Fatalf("expected waiting approval status, got %q", session.Status)
+	}
+	if session.Activity != models.AgentActivityApproval {
+		t.Fatalf("expected approval activity, got %q", session.Activity)
+	}
+	if session.CurrentTool != "Bash" {
+		t.Fatalf("expected nested Bash tool to become current tool, got %q", session.CurrentTool)
+	}
+	if !strings.Contains(session.TaskLabel, "running grep -n") {
+		t.Fatalf("expected nested tool command to drive task label, got %q", session.TaskLabel)
+	}
+}
+
+func TestParseClaudeSessionIgnoresChildProgressForParentSummary(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	worktreePath := filepath.Join(root, "worktrees", "feature")
+	path := filepath.Join(root, "claude.jsonl")
+	now := time.Now().UTC()
+
+	writeJSONLLines(t, path,
+		mustJSONLine(t, map[string]any{
+			"type":      "user",
+			"cwd":       worktreePath,
+			"timestamp": now.Format(time.RFC3339Nano),
+			"message": map[string]any{
+				"role":    "user",
+				"content": "Split handlers",
+			},
+		}),
+		mustJSONLine(t, map[string]any{
+			"type":      "progress",
+			"cwd":       worktreePath,
+			"timestamp": now.Add(time.Second).Format(time.RFC3339Nano),
+			"data": map[string]any{
+				"type":    "agent_progress",
+				"agentId": "agent-123",
+				"message": map[string]any{
+					"type":      "assistant",
+					"timestamp": now.Add(time.Second).Format(time.RFC3339Nano),
+					"message": map[string]any{
+						"role":    "assistant",
+						"content": "Child progress update",
+					},
+				},
+			},
+		}),
+	)
+
+	session, err := parseClaudeSession(path, "")
+	if err != nil {
+		t.Fatalf("parseClaudeSession returned error: %v", err)
+	}
+
+	if session.LastPromptText != "Split handlers" {
+		t.Fatalf("expected parent prompt text to remain visible, got %q", session.LastPromptText)
+	}
+	if session.LastReplyText != "" {
+		t.Fatalf("expected child progress not to populate parent reply text, got %q", session.LastReplyText)
+	}
+	if session.Status != models.AgentSessionStatusThinking {
+		t.Fatalf("expected parent status to remain thinking, got %q", session.Status)
+	}
+	if session.TaskLabel != "working on Split handlers" {
+		t.Fatalf("expected task label from parent prompt, got %q", session.TaskLabel)
+	}
+}
+
+func TestParseClaudeSessionNestedToolResultClearsApproval(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	worktreePath := filepath.Join(root, "worktrees", "feature")
+	path := filepath.Join(root, "claude.jsonl")
+	now := time.Now().UTC()
+
+	writeJSONLLines(t, path,
+		mustJSONLine(t, map[string]any{
+			"type":      "user",
+			"cwd":       worktreePath,
+			"timestamp": now.Format(time.RFC3339Nano),
+			"message": map[string]any{
+				"role":    "user",
+				"content": "Split handlers",
+			},
+		}),
+		mustJSONLine(t, map[string]any{
+			"type":      "progress",
+			"cwd":       worktreePath,
+			"timestamp": now.Add(time.Second).Format(time.RFC3339Nano),
+			"data": map[string]any{
+				"type":    "agent_progress",
+				"agentId": "agent-123",
+				"message": map[string]any{
+					"type":      "assistant",
+					"timestamp": now.Add(time.Second).Format(time.RFC3339Nano),
+					"message": map[string]any{
+						"role": "assistant",
+						"content": []map[string]any{
+							{"type": "tool_use", "id": "bash-tool", "name": "Bash", "input": map[string]any{"command": "grep -n '^func Test' internal/app/handlers_test.go"}},
+						},
+					},
+				},
+			},
+		}),
+		mustJSONLine(t, map[string]any{
+			"type":      "progress",
+			"cwd":       worktreePath,
+			"timestamp": now.Add(2 * time.Second).Format(time.RFC3339Nano),
+			"data": map[string]any{
+				"type":    "agent_progress",
+				"agentId": "agent-123",
+				"message": map[string]any{
+					"type":      "user",
+					"timestamp": now.Add(2 * time.Second).Format(time.RFC3339Nano),
+					"message": map[string]any{
+						"role": "user",
+						"content": []map[string]any{
+							{"type": "tool_result", "tool_use_id": "bash-tool", "content": "ok", "is_error": false},
+						},
+					},
+				},
+			},
+		}),
+	)
+
+	session, err := parseClaudeSession(path, "")
+	if err != nil {
+		t.Fatalf("parseClaudeSession returned error: %v", err)
+	}
+
+	if session.Status == models.AgentSessionStatusWaitingApproval {
+		t.Fatalf("expected approval status to clear after tool result, got %q", session.Status)
+	}
+	if session.Activity == models.AgentActivityApproval {
+		t.Fatalf("expected approval activity to clear after tool result, got %q", session.Activity)
+	}
+	if session.Status != models.AgentSessionStatusThinking {
+		t.Fatalf("expected parent status to fall back to thinking, got %q", session.Status)
+	}
+	if session.TaskLabel != "working on Split handlers" {
+		t.Fatalf("expected task label to fall back to parent prompt, got %q", session.TaskLabel)
+	}
+}
+
+func TestParseClaudeSessionChoosesLatestPendingToolDeterministically(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	worktreePath := filepath.Join(root, "worktrees", "feature")
+	path := filepath.Join(root, "claude.jsonl")
+	now := time.Now().UTC()
+
+	writeJSONLLines(t, path,
+		mustJSONLine(t, map[string]any{
+			"type":      "assistant",
+			"cwd":       worktreePath,
+			"timestamp": now.Format(time.RFC3339Nano),
+			"message": map[string]any{
+				"role": "assistant",
+				"content": []map[string]any{
+					{
+						"type":  "tool_use",
+						"id":    "read-tool",
+						"name":  "Read",
+						"input": map[string]any{"file_path": filepath.Join(worktreePath, "first.go")},
+					},
+					{
+						"type":  "tool_use",
+						"id":    "write-tool",
+						"name":  "Write",
+						"input": map[string]any{"file_path": filepath.Join(worktreePath, "second.go")},
+					},
+				},
+			},
+		}),
+	)
+
+	session, err := parseClaudeSession(path, "")
+	if err != nil {
+		t.Fatalf("parseClaudeSession returned error: %v", err)
+	}
+
+	if session.CurrentTool != "Write" {
+		t.Fatalf("expected last same-timestamp pending tool to win, got %q", session.CurrentTool)
+	}
+}
+
 func TestResolveAgentActivityKeepsWaitingForOpenSession(t *testing.T) {
 	t.Parallel()
 
@@ -304,6 +625,26 @@ func TestResolveAgentActivityDowngradesClosedWaitingSessionToIdle(t *testing.T) 
 
 	if activity != models.AgentActivityIdle {
 		t.Fatalf("expected closed waiting session to decay to idle, got %q", activity)
+	}
+}
+
+func TestResolveAgentActivityKeepsOpenExecutingToolActive(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	activity := resolveAgentActivity(
+		time.Time{},
+		now.Add(-10*time.Minute),
+		"Bash",
+		"Bash",
+		true,
+		models.AgentSessionStatusExecutingTool,
+		now.Add(-10*time.Minute),
+		now,
+	)
+
+	if activity != models.AgentActivityRunning {
+		t.Fatalf("expected open executing tool to remain running, got %q", activity)
 	}
 }
 

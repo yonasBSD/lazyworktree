@@ -20,6 +20,8 @@ const (
 	AgentSessionStatusUnknown AgentSessionStatus = "unknown"
 	// AgentSessionStatusWaitingForUser means the agent is waiting on input.
 	AgentSessionStatusWaitingForUser AgentSessionStatus = "waiting"
+	// AgentSessionStatusWaitingApproval means a delegated tool call is waiting for approval or a result.
+	AgentSessionStatusWaitingApproval AgentSessionStatus = "approval"
 	// AgentSessionStatusThinking means the agent is reasoning about the next step.
 	AgentSessionStatusThinking AgentSessionStatus = "thinking"
 	// AgentSessionStatusExecutingTool means the agent is currently invoking a tool.
@@ -38,6 +40,8 @@ const (
 	AgentActivityIdle AgentActivity = "idle"
 	// AgentActivityWaiting shows the agent waiting for the user.
 	AgentActivityWaiting AgentActivity = "waiting"
+	// AgentActivityApproval shows the agent waiting for a tool approval/result.
+	AgentActivityApproval AgentActivity = "approval"
 	// AgentActivityThinking shows the agent reasoning about a response.
 	AgentActivityThinking AgentActivity = "thinking"
 	// AgentActivityCompacting shows the agent compacting session context.

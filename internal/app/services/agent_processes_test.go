@@ -16,11 +16,14 @@ func TestParseAgentProcessesPS(t *testing.T) {
 		"101 claude claude",
 		"202 Claude /Applications/Claude.app/Contents/MacOS/Claude",
 		"303 pi pi --continue",
-		"404 bash bash",
+		"404 node node /opt/homebrew/bin/claude --model sonnet",
+		"505 zsh zsh -lc claude --print",
+		"606 npm npm exec @anthropic-ai/claude-code -- --print",
+		"707 bash bash -lc echo claude",
 	))
 
-	if len(processes) != 3 {
-		t.Fatalf("expected 3 agent processes, got %d", len(processes))
+	if len(processes) != 6 {
+		t.Fatalf("expected 6 agent processes, got %d", len(processes))
 	}
 	if processes[0].Agent != models.AgentKindClaude || processes[0].Source != "cli" {
 		t.Fatalf("expected first process to be Claude CLI, got %#v", processes[0])
@@ -30,6 +33,11 @@ func TestParseAgentProcessesPS(t *testing.T) {
 	}
 	if processes[2].Agent != models.AgentKindPi {
 		t.Fatalf("expected third process to be pi, got %#v", processes[2])
+	}
+	for _, idx := range []int{3, 4, 5} {
+		if processes[idx].Agent != models.AgentKindClaude || processes[idx].Source != "cli" {
+			t.Fatalf("expected wrapped process %d to be Claude CLI, got %#v", idx, processes[idx])
+		}
 	}
 }
 
@@ -125,6 +133,15 @@ func TestMatchAgentProcessesToSessionsByCWDPrefersNewest(t *testing.T) {
 	}
 	if openSession.OpenConfidence != models.AgentOpenConfidenceCWD {
 		t.Fatalf("expected cwd confidence, got %q", openSession.OpenConfidence)
+	}
+}
+
+func TestClassifyAgentProcessIgnoresUnrelatedShellCommand(t *testing.T) {
+	t.Parallel()
+
+	agent, source, ok := classifyAgentProcess("bash", "bash -lc echo claude")
+	if ok || agent != "" || source != "" {
+		t.Fatalf("expected unrelated shell command to be ignored, got %q %q %v", agent, source, ok)
 	}
 }
 

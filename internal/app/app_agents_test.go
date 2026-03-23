@@ -181,6 +181,26 @@ func TestRenderAgentSessionCardUsesGenericFallbackWithoutTaskOrDisplayName(t *te
 	}
 }
 
+func TestRenderAgentSessionCardShowsApprovalBadge(t *testing.T) {
+	cfg := &config.AppConfig{WorktreeDir: t.TempDir()}
+	m := NewModel(cfg, "")
+
+	session := &models.AgentSession{
+		ID:           "claude-open",
+		Agent:        models.AgentKindClaude,
+		DisplayName:  "Authoring",
+		LastActivity: time.Now(),
+		Activity:     models.AgentActivityApproval,
+		IsOpen:       true,
+	}
+
+	lines := m.renderAgentSessionCard(session, 72, false)
+	plain := ansi.Strip(strings.Join(lines, "\n"))
+	if !strings.Contains(plain, "APPROVAL") {
+		t.Fatalf("expected approval badge, got %q", plain)
+	}
+}
+
 func TestRenderAgentSessionMarkerUsesNerdFontGlyphForClaude(t *testing.T) {
 	cfg := &config.AppConfig{WorktreeDir: t.TempDir(), IconSet: "nerd-font-v3"}
 	m := NewModel(cfg, "")

@@ -274,6 +274,8 @@ func (m *Model) renderAgentSessionActivityBadge(session *models.AgentSession) st
 		bg = m.theme.BorderDim
 	case models.AgentActivityWaiting:
 		bg = m.theme.Cyan
+	case models.AgentActivityApproval:
+		bg = m.theme.WarnFg
 	case models.AgentActivityThinking, models.AgentActivityCompacting:
 		bg = m.theme.Accent
 	case models.AgentActivityReading, models.AgentActivitySearching, models.AgentActivityBrowsing:
