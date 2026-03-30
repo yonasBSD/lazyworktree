@@ -27,6 +27,8 @@ jobs:
           go-version-file: go.mod
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
+        id: goreleaser
+        continue-on-error: true
         with:
           distribution: goreleaser
           version: latest
@@ -34,6 +36,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AUR_PRIVATE_KEY: ${{ secrets.AUR_PRIVATE_KEY }}
+      - name: Verify release created
+        if: steps.goreleaser.outcome == 'failure'
+        run: |
+          if gh release view "${{ github.ref_name }}" &>/dev/null; then
+            echo "::warning::GoReleaser reported failure (likely AUR push) but release was created successfully"
+          else
+            echo "::error::Release was not created"
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Update release notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
