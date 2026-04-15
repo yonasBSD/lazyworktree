@@ -229,6 +229,9 @@ func shellInvokesClaude(tokens []string, commandBase string) bool {
 			continue
 		}
 		if shellCommandExpected {
+			if strings.EqualFold(token, "exec") {
+				continue
+			}
 			return isClaudeCLIToken(token)
 		}
 		switch token {

@@ -145,6 +145,18 @@ func TestClassifyAgentProcessIgnoresUnrelatedShellCommand(t *testing.T) {
 	}
 }
 
+func TestClassifyAgentProcessMatchesShellExecWrapper(t *testing.T) {
+	t.Parallel()
+
+	agent, source, ok := classifyAgentProcess("bash", "bash -lc 'exec claude --print'")
+	if !ok {
+		t.Fatal("expected shell exec wrapper to be detected")
+	}
+	if agent != models.AgentKindClaude || source != "cli" {
+		t.Fatalf("expected Claude CLI match, got %q %q", agent, source)
+	}
+}
+
 func stringsJoin(lines ...string) string {
 	return strings.Join(lines, "\n")
 }
